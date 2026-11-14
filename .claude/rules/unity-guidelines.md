@@ -1,6 +1,6 @@
 ---
 paths:
-  - "Assets/**"
+  - "RSPRullet/Assets/**"
 ---
 
 # Unity 프로젝트 개발 지침
@@ -16,7 +16,7 @@ paths:
 Assets/
 ├── Art/{Characters,Backgrounds,UI,Objects}
 ├── VFX/
-├── Audio/{BGM,SFX}
+├── Audio/
 ├── Animations/{Characters,UI}
 ├── Prefabs/{Characters,UI,Effects}
 ├── Scenes/{Main,Test}  
@@ -49,4 +49,4 @@ Assets/
 - Jira 이슈에 Main Scene 작업이 포함되어 있더라도 명시적 승인 여부가 불분명하면 먼저 확인한다.
 
 ### Scene 수정이 필요 없는 작업
-순수 C# 클래스 작성, Scene과 무관한 로직 수정, 유틸리티 구현, 코드 분석, 정적 검증에서는 불필요하게 Scene을 생성하거나 수정하지 않는다. 단, Scene에서 실제 동작을 확인해야 하면 이 장의 개인 Scene 정책을 적용한다.
+순수 C# 클래스 작성, Scene과 무관한 로직 수정, 유틸리티 구현, 코드 분석, 정적 검증에서는 불필요하게 Scene을 생성하거나 수정하지 않는다.

@@ -1,4 +1,4 @@
-# Fourbeat Jira 이슈 작성 템플릿
+# Jira 이슈 작성 템플릿
 
 > Jira 이슈의 제목·설명 **작성 형식**만 정의한다. 생성·수정 시점과 승인 절차는 같은 폴더의 `SKILL.md`(jira-workflow)를 따른다.
 

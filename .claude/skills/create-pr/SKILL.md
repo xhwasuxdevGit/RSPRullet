@@ -16,7 +16,7 @@ disable-model-invocation: false
 5. 검증은 `behavior-guidelines.md` 7장의 작업 유형별 기준으로 수행한다. 이미 수행한 검증은 결과를 재사용하고, 못 한 검증은 미실행으로 명시한다.
 6. 작업 범위 위반 여부를 확인한다.
    - 승인받지 않은 파일 변경 (STANDARD 계획 범위 포함)
-   - `Assets/RSPRullet/Scenes/Main/` 무단 변경
+   - `Assets/Scenes/Main/` 무단 변경
    - Scene 폴더 변경(`unity-guidelines.md`)
    - Jira 작업 범위와 실제 변경사항의 불일치
    - 위반이 있으면 변경사항을 폐기·되돌리지 않고 해당 파일과 내용을 사용자에게 보고한 뒤 처리 방향을 확인한다. 확인 전에는 해당 파일을 stage하지 않는다.
