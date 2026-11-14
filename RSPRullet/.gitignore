@@ -108,3 +108,6 @@ InitTestScene*.unity*
 
 # Workspace xml
 /.idea/
+
+# UI Toolkit auto generated files
+/UIElementsSchema/
