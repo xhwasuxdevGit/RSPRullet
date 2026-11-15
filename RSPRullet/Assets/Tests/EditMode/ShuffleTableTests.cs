@@ -161,4 +161,89 @@ public class ShuffleTableTests
         Assert.AreEqual(3, table.GetCombinationSlots(Side.Dealer).Count);
         Assert.AreEqual(1, table.RemainingDeckCount);
     }
+
+    // ---- RSP-28 카드별 정보 공개 상태 ----
+
+    [Test]
+    public void RevealMatchCards_BothKnowBothMatchCards()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        table.RevealMatchCards();
+
+        foreach (Card card in new[] { table.GetCombinationSlots(Side.Player)[1], table.GetCombinationSlots(Side.Dealer)[1] })
+        {
+            Assert.IsTrue(card.KnownByPlayer);
+            Assert.IsTrue(card.KnownByDealer);
+        }
+    }
+
+    [Test]
+    public void RevealRemainingCard_LastCardKnownByBoth_AndLeavesDeck()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.PassTurn(clockUsed: false);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        Card remaining = table.RevealRemainingCard();
+
+        Assert.AreEqual(HandShape.Scissors, remaining.Shape);
+        Assert.IsTrue(remaining.KnownByPlayer);
+        Assert.IsTrue(remaining.KnownByDealer);
+        Assert.AreEqual(0, table.RemainingDeckCount);
+    }
+
+    [Test]
+    public void GetKnownCards_EachSideSeesOnlyWhatItKnows()
+    {
+        var table = MakeTableWithPlayerFirst();
+        Card drawn = table.DrawForTurnPlayer();
+
+        // 플레이어가 뽑아 확인 중: 플레이어만 그 카드를 안다
+        CollectionAssert.Contains(table.GetKnownCards(Side.Player), drawn);
+        CollectionAssert.DoesNotContain(table.GetKnownCards(Side.Dealer), drawn);
+
+        table.Distribute(keep: true);
+        Card faceDown = table.GetCombinationSlots(Side.Dealer)[1];
+
+        // 딜러는 양쪽 시작 카드만 안다. 자기 자리의 엎어진 카드도 모른다
+        var dealerKnown = table.GetKnownCards(Side.Dealer);
+        CollectionAssert.AreEquivalent(
+            new[] { table.GetCombinationSlots(Side.Player)[0], table.GetCombinationSlots(Side.Dealer)[0] },
+            dealerKnown);
+        CollectionAssert.DoesNotContain(table.GetKnownCards(Side.Player), faceDown);
+
+        table.RevealMatchCards();
+
+        Assert.AreEqual(4, table.GetKnownCards(Side.Dealer).Count);
+        Assert.AreEqual(4, table.GetKnownCards(Side.Player).Count);
+    }
+
+    [Test]
+    public void GetUnrevealedCardCount_CountsDeckAndCardsNotKnownByBoth()
+    {
+        // 카드풀: 가위 3 · 바위 2 · 보 2. 시작 카드 가위·보가 공개된 상태
+        var table = MakeTableWithPlayerFirst();
+        AssertUnrevealed(table, scissors: 2, rock: 2, paper: 1);
+
+        // 플레이어가 뽑아 가진 바위와 딜러 자리의 엎어진 가위는 아직 한쪽 또는 양쪽이 모르므로 미공개
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        AssertUnrevealed(table, scissors: 2, rock: 2, paper: 1);
+
+        table.RevealMatchCards();
+        AssertUnrevealed(table, scissors: 1, rock: 1, paper: 1);
+    }
+
+    private static void AssertUnrevealed(ShuffleTable table, int scissors, int rock, int paper)
+    {
+        Assert.AreEqual(scissors, table.GetUnrevealedCardCount(HandShape.Scissors));
+        Assert.AreEqual(rock, table.GetUnrevealedCardCount(HandShape.Rock));
+        Assert.AreEqual(paper, table.GetUnrevealedCardCount(HandShape.Paper));
+    }
 }

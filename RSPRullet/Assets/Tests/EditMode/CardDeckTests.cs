@@ -47,6 +47,17 @@ public class CardDeckTests
     }
 
     [Test]
+    public void GetCardCount_CountsRemainingCardsByShape()
+    {
+        var deck = new CardDeck(MakePool(), new System.Random(1));
+        Card drawn = deck.Draw();
+
+        int expectedScissors = drawn.Shape == HandShape.Scissors ? 2 : 3;
+        Assert.AreEqual(expectedScissors, deck.GetCardCount(HandShape.Scissors));
+        Assert.AreEqual(6, deck.GetCardCount(HandShape.Scissors) + deck.GetCardCount(HandShape.Rock) + deck.GetCardCount(HandShape.Paper));
+    }
+
+    [Test]
     public void SameSeed_GivesSameOrder()
     {
         var first = DrawAll(new CardDeck(MakePool(), new System.Random(42))).Select(card => card.Shape).ToList();

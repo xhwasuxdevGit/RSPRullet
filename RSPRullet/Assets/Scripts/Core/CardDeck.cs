@@ -23,6 +23,20 @@ public class CardDeck
         return top;
     }
 
+    // 더미에 남은 카드 중 shape인 카드 수. 더미 순서는 드러내지 않고 장수만 알려준다
+    public int GetCardCount(HandShape shape)
+    {
+        int count = 0;
+        foreach (Card card in _cards)
+        {
+            if (card.Shape == shape)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
     // 피셔-예이츠 셔플: 뒤 칸부터 아직 확정되지 않은 칸 중 하나와 맞바꿔, 모든 순서가 같은 확률로 나온다
     private static void Shuffle(List<Card> cards, System.Random random)
     {
