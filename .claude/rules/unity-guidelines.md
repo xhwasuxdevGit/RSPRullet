@@ -55,3 +55,25 @@ Assets/
 
 ### Scene 수정이 필요 없는 작업
 순수 C# 클래스 작성, Scene과 무관한 로직 수정, 유틸리티 구현, 코드 분석, 정적 검증에서는 불필요하게 Scene을 생성하거나 수정하지 않는다.
+
+## 6. Unity Pipeline CLI 사용
+- 에디터 조작은 `unity` CLI(`unity command <group> <name>`)로 한다. `unity-pipeline` 스킬의 절차를 따르되, 명령·플래그는 아래 표와 실제 목록(`unity command <group>`)을 우선한다.
+- 스킬 문서는 CLI 1.0.0 / `com.unity.pipeline` 1.0.0과 다른 곳이 있다(2026-11-16 대조). 플래그는 하이픈(kebab-case)만 허용되고 밑줄 표기는 거부된다.
+
+| 스킬 문서 | 실제 |
+|---|---|
+| `unity pipeline list` | `unity pipeline editors` |
+| `editor set_auto_tick --enable` | `--enabled` |
+| `--dry_run`, `--async_tests`, `--filter_type`, `--assemblyDir` | `--dry-run`, `--async-tests`, `--filter-type`, `--assembly-dir` |
+| `script eval_file <경로>` | `script eval --file <경로>` |
+| `test run --mode playmode` | `--async-tests` 함께 지정 |
+| `capture screenshot --view`, `--output` | `capture game_view` / `scene_view` / `editor_window` |
+| `--save_path`, `--max_resolution`, `--include_inline_image` | `--output-path`, `--max-resolution`, `--include-inline-image` |
+
+- 표에 없는 명령은 실행 전에 `unity command --query <단어>`로 확인한다. 패키지나 CLI를 업그레이드한 뒤에는 이 표를 다시 대조한다.
+
+## 7. CLI 출력 줄이기
+- 명령을 찾을 때는 그룹 전체 목록(`unity command <group>`) 대신 `unity command --query <단어>`를 먼저 쓴다.
+- 상태 확인은 짧은 명령부터 한다: `editor status`, `console status`, `script recompile_status`. 로그는 문제가 있을 때만 `console get --level error --tail 20`처럼 수준과 개수를 제한해 읽는다.
+- 테스트는 `test list`로 전체 목록을 뽑지 않고, `test run --filter <클래스명>` 또는 `--filter-type Assembly`로 범위를 좁혀 실행한다. 비동기 실행 결과는 `test status --detail failures`(실패만) 또는 `summary`(개수만)로 읽는다.
+- 화면 캡처는 `--output-path`로 파일에 저장하고, 이미지를 직접 봐야 할 때만 `--max-resolution 512` 이하로 인라인 이미지를 받는다.

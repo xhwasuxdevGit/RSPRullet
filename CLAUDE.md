@@ -14,7 +14,7 @@
 | 상황 | 지침 | 로딩 |
 |---|---|---|
 | C# 파일 작업 | `.claude/rules/coding-conventions.md` | `**/*.cs` 파일을 읽을 때 자동 |
-| Unity 에셋·Scene·Prefab 작업 | `.claude/rules/unity-guidelines.md` | `RSPRullet/Assets/**` 파일을 읽을 때 자동. **Unity MCP·Editor 도구로 Scene/Prefab/에셋을 조작하기 전에는 직접 읽는다** (`paths`는 파일 읽기에만 반응) |
+| Unity 에셋·Scene·Prefab 작업 | `.claude/rules/unity-guidelines.md` | `RSPRullet/Assets/**` 파일을 읽을 때 자동. **Unity CLI(`unity command`)·Editor 도구로 Scene/Prefab/에셋 조작, 컴파일·테스트 실행을 하기 전에는 직접 읽는다** (`paths`는 파일 읽기에만 반응) |
 | 개발 작업의 Jira 워크플로우, 이슈 생성·수정·상태 전환 | `jira-workflow` 스킬 (+ `issue-template.md`) | 해당 작업 시 스킬 사용 |
 | 브랜치·커밋·Push·PR | `git-workflow` 스킬 | 해당 작업 시 스킬 사용 |
 | Jira 이슈로 작업 시작 | `start-issue` 스킬 | `/start-issue RSP-87` 또는 자동 선택 |
