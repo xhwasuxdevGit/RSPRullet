@@ -29,7 +29,7 @@ public class HealthState
     public MatchResult ApplyMatch(HandShape playerShape, HandShape dealerShape, bool playerUsedCoffee = false, bool dealerUsedCoffee = false)
     {
         MatchResult playerResult = HandShapeRules.Compare(playerShape, dealerShape);
-        string matchLog = $"{GetShapeName(playerShape)} vs {GetShapeName(dealerShape)}";
+        string matchLog = $"{DisplayNames.GetShapeName(playerShape)} vs {DisplayNames.GetShapeName(dealerShape)}";
         if (playerResult == MatchResult.Draw)
         {
             Debug.Log($"[HealthState] {matchLog} → 무승부 → 체력 변화 없음");
@@ -42,8 +42,7 @@ public class HealthState
         SetHealth(loser, Mathf.Max(GetHealth(loser) - damage, GameRules.MinHealth));
 
         string resultName = playerResult == MatchResult.Win ? "승리" : "패배";
-        string loserName = loser == Side.Player ? "플레이어" : "딜러";
-        Debug.Log($"[HealthState] {matchLog} → {resultName} → {loserName} 체력 -{damage}");
+        Debug.Log($"[HealthState] {matchLog} → {resultName} → {DisplayNames.GetSideName(loser)} 체력 -{damage}");
         return playerResult;
     }
 
@@ -97,18 +96,5 @@ public class HealthState
         }
 
         _dealerHealth = health;
-    }
-
-    private static string GetShapeName(HandShape shape)
-    {
-        switch (shape)
-        {
-            case HandShape.Scissors:
-                return "가위";
-            case HandShape.Rock:
-                return "바위";
-            default:
-                return "보";
-        }
     }
 }
