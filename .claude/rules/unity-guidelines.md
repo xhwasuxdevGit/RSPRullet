@@ -21,11 +21,13 @@ Assets/
 ├── Prefabs/{Characters,UI,Effects,Items}
 ├── Scenes/{Main,Test}  
 ├── Scripts/{Battle,Character,Enemy,UI,Core,Enums,Interfaces,Items,Utilities}
+├── SO/
 ├── Tests/EditMode/
 └── Settings/
 ```
 
 - 게임 코드는 `Scripts/`의 `RSPRullet.asmdef` 어셈블리에, EditMode 테스트는 `Tests/EditMode/`의 `RSPRullet.Tests.EditMode.asmdef` 어셈블리에 둔다. 게임 코드에서 다른 패키지를 쓰면 `RSPRullet.asmdef`의 참조 목록에 해당 어셈블리가 있는지 확인한다.
+- ScriptableObject 에셋(`.asset`)은 `Assets/SO/`에 둔다. SO 클래스 스크립트(`.cs`)는 `Scripts/` 하위에 둔다.
 
 - 기존 Editor 빌드 스크립트는 `Assets/Editor/`에 있을 수 있다.
 - 기존 폴더 구조를 따르며 중복 폴더를 만들지 않는다.
