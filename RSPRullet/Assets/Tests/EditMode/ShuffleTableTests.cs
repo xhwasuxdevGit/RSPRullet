@@ -40,9 +40,9 @@ public class ShuffleTableTests
 
         table.DealStartCards();
 
-        Assert.AreEqual(HandShape.Rock, table.GetSlots(Side.Player)[0].Shape);
-        Assert.AreEqual(HandShape.Paper, table.GetSlots(Side.Dealer)[0].Shape);
-        foreach (Card card in table.GetSlots(Side.Player).Concat(table.GetSlots(Side.Dealer)))
+        Assert.AreEqual(HandShape.Rock, table.GetCombinationSlots(Side.Player)[0].Shape);
+        Assert.AreEqual(HandShape.Paper, table.GetCombinationSlots(Side.Dealer)[0].Shape);
+        foreach (Card card in table.GetCombinationSlots(Side.Player).Concat(table.GetCombinationSlots(Side.Dealer)))
         {
             Assert.IsTrue(card.KnownByPlayer);
             Assert.IsTrue(card.KnownByDealer);
@@ -105,8 +105,8 @@ public class ShuffleTableTests
 
         table.Distribute(keep: true);
 
-        Card dealerCard = table.GetSlots(Side.Dealer)[1];
-        Assert.AreSame(drawn, table.GetSlots(Side.Player)[1]);
+        Card dealerCard = table.GetCombinationSlots(Side.Dealer)[1];
+        Assert.AreSame(drawn, table.GetCombinationSlots(Side.Player)[1]);
         Assert.AreEqual(HandShape.Scissors, dealerCard.Shape);
         Assert.IsFalse(dealerCard.KnownByPlayer);
         Assert.IsFalse(dealerCard.KnownByDealer);
@@ -121,8 +121,8 @@ public class ShuffleTableTests
 
         table.Distribute(keep: false);
 
-        Card playerCard = table.GetSlots(Side.Player)[1];
-        Assert.AreSame(drawn, table.GetSlots(Side.Dealer)[1]);
+        Card playerCard = table.GetCombinationSlots(Side.Player)[1];
+        Assert.AreSame(drawn, table.GetCombinationSlots(Side.Dealer)[1]);
         Assert.IsFalse(playerCard.KnownByPlayer);
         Assert.IsFalse(playerCard.KnownByDealer);
         // 받은 상대(딜러)는 뽑은 카드를 모른다
@@ -156,9 +156,9 @@ public class ShuffleTableTests
         // 두 번째 판은 딜러가 턴 플레이어이므로 딜러만 뽑은 카드를 알고, 준 카드는 플레이어 자리로 간다
         Assert.IsTrue(secondDrawn.KnownByDealer);
         Assert.IsFalse(secondDrawn.KnownByPlayer);
-        Assert.AreSame(secondDrawn, table.GetSlots(Side.Player)[2]);
-        Assert.AreEqual(3, table.GetSlots(Side.Player).Count);
-        Assert.AreEqual(3, table.GetSlots(Side.Dealer).Count);
+        Assert.AreSame(secondDrawn, table.GetCombinationSlots(Side.Player)[2]);
+        Assert.AreEqual(3, table.GetCombinationSlots(Side.Player).Count);
+        Assert.AreEqual(3, table.GetCombinationSlots(Side.Dealer).Count);
         Assert.AreEqual(1, table.RemainingDeckCount);
     }
 }

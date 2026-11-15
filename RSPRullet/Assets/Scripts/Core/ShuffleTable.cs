@@ -7,6 +7,8 @@ using UnityEngine;
 public class ShuffleTable
 {
     private readonly CardDeck _deck;
+
+    // 카드 조합 칸 (기획서 1장 용어). 받은 순서대로 시작 카드 → 첫 번째 판 → 두 번째 판 카드가 쌓인다
     private readonly List<Card> _playerSlots = new List<Card>();
     private readonly List<Card> _dealerSlots = new List<Card>();
 
@@ -27,10 +29,10 @@ public class ShuffleTable
         return side == Side.Player ? Side.Dealer : Side.Player;
     }
 
-    // 카드 조합 칸 (받은 순서: 시작 카드 → 첫 번째 판 → 두 번째 판)
-    public IReadOnlyList<Card> GetSlots(Side side)
+    // 바깥(UI, 딜러 AI, 테스트)에서 조합 칸을 볼 때 쓴다. 읽기 전용이라 바깥에서는 카드를 넣거나 뺄 수 없다
+    public IReadOnlyList<Card> GetCombinationSlots(Side side)
     {
-        return SlotsOf(side);
+        return side == Side.Player ? _playerSlots : _dealerSlots;
     }
 
     // 더미 맨 위부터 플레이어 → 딜러 순서로 1장씩, 각자 조합 칸 첫 칸에 앞면으로 둔다
@@ -75,8 +77,8 @@ public class ShuffleTable
     public void Distribute(bool keep)
     {
         Side receiver = keep ? TurnPlayer : Opponent(TurnPlayer);
-        SlotsOf(receiver).Add(DrawnCard);
-        SlotsOf(Opponent(receiver)).Add(_deck.Draw());
+        AddToCombination(receiver, DrawnCard);
+        AddToCombination(Opponent(receiver), _deck.Draw());
         DrawnCard = null;
     }
 
@@ -91,16 +93,18 @@ public class ShuffleTable
         TurnPlayer = Opponent(TurnPlayer);
     }
 
-    private List<Card> SlotsOf(Side side)
+    // side의 조합 칸 맨 뒤에 카드를 넣는다. 조합 칸을 바꾸는 곳은 이 메서드 하나뿐이다
+    private void AddToCombination(Side side, Card card)
     {
-        return side == Side.Player ? _playerSlots : _dealerSlots;
+        List<Card> slots = side == Side.Player ? _playerSlots : _dealerSlots;
+        slots.Add(card);
     }
 
     private void PlaceFaceUp(Side side, Card card)
     {
         card.KnownByPlayer = true;
         card.KnownByDealer = true;
-        SlotsOf(side).Add(card);
+        AddToCombination(side, card);
     }
 
     private static void MarkKnownBy(Card card, Side side)
