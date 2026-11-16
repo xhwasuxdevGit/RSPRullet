@@ -30,11 +30,11 @@ public class GameFlow
     public int RemainingDeckCount => _table.RemainingDeckCount;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택이 같게 나와 테스트에서 진행을 재현할 수 있다
-    public GameFlow(RuleSettings rules, RoundSettings round, System.Random random)
+    public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
     {
         _random = random;
         _health = new HealthState(rules, round.StartHealth);
-        _dealer = new DealerAI(rules, random);
+        _dealer = new DealerAI(rules, dealerSettings, random);
     }
 
     public int GetHealth(Side side)
