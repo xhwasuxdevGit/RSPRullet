@@ -9,6 +9,7 @@ public class DealerKnownInfo
     private readonly List<HandShape?> _dealerSlotShapes = new List<HandShape?>();
     private readonly Dictionary<HandShape, int> _poolCardCounts = new Dictionary<HandShape, int>();
     private readonly Dictionary<HandShape, int> _unrevealedCardCounts = new Dictionary<HandShape, int>();
+    private readonly Dictionary<HandShape, int> _unknownCardCounts = new Dictionary<HandShape, int>();
 
     // 이번 카드 셔플에서 몇 번째 판인지 (0: 1번째 판, 1: 2번째 판)
     public int MatchIndex { get; }
@@ -27,6 +28,16 @@ public class DealerKnownInfo
         {
             _poolCardCounts[shape] = table.GetPoolCardCount(shape);
             _unrevealedCardCounts[shape] = table.GetUnrevealedCardCount(shape);
+            _unknownCardCounts[shape] = _unrevealedCardCounts[shape];
+        }
+
+        // 미공개 카드 중 딜러만 아는 카드(뽑은 카드 등)를 빼면 딜러가 모르는 카드가 남는다 (딜러 AI 세부 기획서 1장 용어)
+        foreach (Card card in table.GetKnownCards(Side.Dealer))
+        {
+            if (!card.KnownByPlayer)
+            {
+                _unknownCardCounts[card.Shape]--;
+            }
         }
     }
 
@@ -46,6 +57,12 @@ public class DealerKnownInfo
     public int GetUnrevealedCardCount(HandShape shape)
     {
         return _unrevealedCardCounts[shape];
+    }
+
+    // 손 모양별로 딜러가 모르는 카드 수 (미공개 카드에서 딜러가 아는 카드를 뺀 수)
+    public int GetUnknownCardCount(HandShape shape)
+    {
+        return _unknownCardCounts[shape];
     }
 
     // 조합 칸의 카드를 받은 순서대로 손 모양으로 옮겨 적는다. 딜러가 모르는 카드는 null로 남겨,

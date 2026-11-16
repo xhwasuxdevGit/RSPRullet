@@ -34,7 +34,7 @@ public class GameFlow
     {
         _random = random;
         _health = new HealthState(rules, round.StartHealth);
-        _dealer = new DealerAI(random);
+        _dealer = new DealerAI(rules, random);
     }
 
     public int GetHealth(Side side)
