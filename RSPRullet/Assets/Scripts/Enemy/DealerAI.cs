@@ -7,14 +7,23 @@ public class DealerAI
 {
     private const int FirstMatchIndex = 0;
 
+    // 반대로 갈 근거가 없는 상황에서 규칙상 결론을 따를 확률 (딜러 AI 세부 기획서 3-5장 항상 따름)
+    private const float AlwaysFollowRate = 1f;
+
+    // 2번째 판에서 선택 간 HP 차이가 이 값 이상이면 강함 보정률을 쓴다 (딜러 AI 세부 기획서 3-5장)
+    private const int StrengthCorrectionHealthGap = 2;
+
     private readonly RuleSettings _rules;
+    private readonly DealerSettings _dealerSettings;
     private readonly System.Random _random;
 
-    // 정산 대미지·회복량은 실제 정산과 같은 값(RuleSettings)으로 계산한다.
+    // 판정·정산 대미지와 회복량은 실제 진행과 같은 값(RuleSettings)으로 계산한다.
+    // 무작위 단계의 확률(규칙 준수율·강함 보정률)은 딜러 설정(DealerSettings)에서 읽는다.
     // 같은 시드의 난수를 넘기면 같은 선택이 나오므로 테스트에서 상황을 재현할 수 있다
-    public DealerAI(RuleSettings rules, System.Random random)
+    public DealerAI(RuleSettings rules, DealerSettings dealerSettings, System.Random random)
     {
         _rules = rules;
+        _dealerSettings = dealerSettings;
         _random = random;
     }
 
@@ -71,11 +80,103 @@ public class DealerAI
     }
 
     // 카드 분배 판단 (딜러 AI 세부 기획서 3장). 딜러가 아는 정보만 받아 가진다(true) / 준다(false)를 돌려준다.
-    // ③ 충돌 해결과 무작위 단계(RSP-47)가 들어오기 전까지는 50:50으로 고른다.
-    // ② 이번 판 판단(JudgeThisMatch)과 ① 조합 판단(JudgeCombination)은 ③ 충돌 해결(RSP-47)에서 이 메서드에 연결한다
+    // ③ 충돌 해결 규칙으로 규칙상 결론을 정하고, 무작위 단계를 거쳐 실제 행동을 고른다 (딜러 AI 세부 기획서 1장 판단 흐름)
     private bool ChooseKeep(DealerKnownInfo knownInfo)
     {
-        return _random.Next(2) == 0;
+        return knownInfo.MatchIndex == FirstMatchIndex
+            ? ChooseFirstMatchKeep(knownInfo)
+            : ChooseSecondMatchKeep(knownInfo);
+    }
+
+    // 1번째 판: "②-승패 판정"을 우선하고, "②-승패 판정"가 상관없음이면, "①-카드조합"을 따른다 (딜러 AI 세부 기획서 3-4장 1번째 판 표).
+    // "①-카드조합"이 같은 방향이거나 상관없음이면 항상 따르고, "①-카드조합"이 반대이거나 "①-카드조합"만 결론이면 규칙 준수율을 쓴다 (딜러 AI 세부 기획서 3-5장).
+    // 1번째 판에서 "②-승패 판정"와 "①-카드조합"이 둘 다 상관없음인 경우는 없다:
+    // "②-승패 판정"가 상관없음이면 뽑은 카드가 3장인 손모양이라 "①-카드조합"은 A-1(가진다) 또는 B-1·B-2가 된다
+    private bool ChooseFirstMatchKeep(DealerKnownInfo knownInfo)
+    {
+        DealerChoice consideredThisMatch = JudgeThisMatch(knownInfo);
+        DealerChoice consideredCombination = JudgeCombination(knownInfo);
+
+        if (consideredThisMatch == DealerChoice.Either)
+        {
+            return ApplyRandomRatio(consideredCombination, _dealerSettings.RuleComplianceRate);
+        }
+
+        bool hasNoOpposingReason = consideredCombination == consideredThisMatch || consideredCombination == DealerChoice.Either;
+        float followRate = hasNoOpposingReason ? AlwaysFollowRate : _dealerSettings.RuleComplianceRate;
+        return ApplyRandomRatio(consideredThisMatch, followRate);
+    }
+
+    // 2번째 판: 예상 HP 변화가 큰 쪽이 규칙상 결론이고, 같으면 결론 없음이다 (딜러 AI 세부 기획서 3-4장 2번째 판).
+    // 선택 간 HP 차이가 1이면 규칙 준수율, 2 이상이면 강함 보정률을 쓴다 (딜러 AI 세부 기획서 3-5장)
+    private bool ChooseSecondMatchKeep(DealerKnownInfo knownInfo)
+    {
+        int changeByKeep = SumExpectedChange(knownInfo, keep: true);
+        int changeByGive = SumExpectedChange(knownInfo, keep: false);
+
+        if (changeByKeep == changeByGive)
+        {
+            return ApplyRandomRatio(DealerChoice.Either, AlwaysFollowRate);
+        }
+
+        DealerChoice conclusion = changeByKeep > changeByGive ? DealerChoice.Keep : DealerChoice.Give;
+        int healthGap = System.Math.Abs(changeByKeep - changeByGive);
+        float followRate = healthGap >= StrengthCorrectionHealthGap
+            ? _dealerSettings.StrengthCorrectionRate
+            : _dealerSettings.RuleComplianceRate;
+        return ApplyRandomRatio(conclusion, followRate);
+    }
+
+    // 무작위 단계 (딜러 AI 세부 기획서 3-5장). 규칙상 결론을 followRate 확률로 따르고, 나머지 확률로는 반대 선택을 한다.
+    // 결론 없음(상관없음)이면 followRate와 상관없이 50:50으로 정한다 (딜러 AI 세부 기획서 7-1-2장)
+    private bool ApplyRandomRatio(DealerChoice conclusion, float followRate)
+    {
+        if (conclusion == DealerChoice.Either)
+        {
+            return _random.Next(2) == 0;
+        }
+
+        bool ruleKeep = conclusion == DealerChoice.Keep;
+        bool follows = _random.NextDouble() < followRate;
+        Debug.Log($"[DealerAI] 규칙상 결론: {(ruleKeep ? "가진다" : "준다")}, 따를 확률 {followRate}, {(follows ? "따름" : "반대 선택")}");
+        return follows ? ruleKeep : !ruleKeep;
+    }
+
+    // 예상 HP 변화 = 판정 시 HP 변화 + 정산 시 HP 변화 (딜러 AI 세부 기획서 3-4장 2번째 판 표).
+    // 커피 대미지 배수는 아이템 단계가 아직 없어 반영하지 않는다
+    private int SumExpectedChange(DealerKnownInfo knownInfo, bool keep)
+    {
+        return SumJudgmentChange(knownInfo, keep) + SumSettlementChange(knownInfo, keep);
+    }
+
+    // 딜러가 모르는 카드를 한 장씩 상대 자리에 넣어 본 판정 시 HP 변화(딜러 기준)의 합.
+    // 가지면 딜러는 뽑은 카드, 플레이어는 모르는 카드로 겨루고, 주면 그 반대다
+    private int SumJudgmentChange(DealerKnownInfo knownInfo, bool keep)
+    {
+        int sum = 0;
+
+        foreach (HandShape unknownShape in System.Enum.GetValues(typeof(HandShape)))
+        {
+            HandShape dealerShape = keep ? knownInfo.DrawnShape : unknownShape;
+            HandShape playerShape = keep ? unknownShape : knownInfo.DrawnShape;
+            sum += GetJudgmentValue(HandShapeRules.Compare(dealerShape, playerShape)) * knownInfo.GetUnknownCardCount(unknownShape);
+        }
+
+        return sum;
+    }
+
+    // 판정 한 번이 딜러 기준 HP 차이를 얼마나 벌리는지 (딜러 승리 +, 비김 0, 딜러 패배 −)
+    private int GetJudgmentValue(MatchResult dealerResult)
+    {
+        switch (dealerResult)
+        {
+            case MatchResult.Win:
+                return _rules.MatchDamage;
+            case MatchResult.Lose:
+                return -_rules.MatchDamage;
+            default:
+                return 0;
+        }
     }
 
     // ② 이번 판 판단에서 판단 근거를 위해 남은 카드를 어떻게 계산할지 정한다. (딜러 AI 세부 기획서 3-1장).
@@ -110,20 +211,20 @@ public class DealerAI
     // 2번째 판: 정산 시 HP 변화 합이 큰 쪽을 고르고, 같으면 상관없음 (딜러 AI 세부 기획서 3-3장 2번째 판 표)
     private DealerChoice JudgeSecondMatchCombination(DealerKnownInfo knownInfo)
     {
-        int keepChange = SumSettlementChange(knownInfo, keep: true);
-        int giveChange = SumSettlementChange(knownInfo, keep: false);
+        int changeByKeep = SumSettlementChange(knownInfo, keep: true);
+        int changeByGive = SumSettlementChange(knownInfo, keep: false);
 
-        if (keepChange == giveChange)
+        if (changeByKeep == changeByGive)
         {
             return DealerChoice.Either;
         }
 
-        return keepChange > giveChange ? DealerChoice.Keep : DealerChoice.Give;
+        return changeByKeep > changeByGive ? DealerChoice.Keep : DealerChoice.Give;
     }
 
     // 딜러가 모르는 카드를 한 장씩 남은 빈자리에 넣어 본 정산 시 HP 변화(딜러 기준)의 합.
     // 가지면 뽑은 카드가 딜러 자리, 모르는 카드가 플레이어 자리에 들어가고, 주면 그 반대다.
-    // ③ 충돌 해결(RSP-47)의 예상 HP 변화도 이 값에 판정 시 HP 변화를 더해 구한다 (딜러 AI 세부 기획서 3-4장)
+    // ③ 충돌 해결의 예상 HP 변화(SumExpectedChange)도 이 값을 쓴다 (딜러 AI 세부 기획서 3-4장)
     private int SumSettlementChange(DealerKnownInfo knownInfo, bool keep)
     {
         var dealerSlots = knownInfo.GetSlotShapes(Side.Dealer);

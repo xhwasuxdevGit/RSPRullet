@@ -11,12 +11,14 @@ public class GameFlowTests
 
     private RuleSettings _rules;
     private RoundSettings _round;
+    private DealerSettings _dealerSettings;
 
     [SetUp]
     public void SetUp()
     {
         _rules = ScriptableObject.CreateInstance<RuleSettings>();
         _round = ScriptableObject.CreateInstance<RoundSettings>();
+        _dealerSettings = ScriptableObject.CreateInstance<DealerSettings>();
     }
 
     [TearDown]
@@ -24,11 +26,12 @@ public class GameFlowTests
     {
         Object.DestroyImmediate(_rules);
         Object.DestroyImmediate(_round);
+        Object.DestroyImmediate(_dealerSettings);
     }
 
     private GameFlow StartFlow(int seed)
     {
-        var flow = new GameFlow(_rules, _round, new System.Random(seed));
+        var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
         flow.StartRound();
         return flow;
     }
@@ -149,7 +152,7 @@ public class GameFlowTests
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
             var logs = new List<string>();
             flow.Logged += logs.Add;
             flow.StartRound();

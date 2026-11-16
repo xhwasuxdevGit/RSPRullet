@@ -8,13 +8,14 @@ public class GameFlowRunner : MonoBehaviour
 {
     [SerializeField] private RuleSettings _ruleSettings;
     [SerializeField] private RoundSettings _roundSettings;
+    [SerializeField] private DealerSettings _dealerSettings;
 
     public GameFlow Flow { get; private set; }
 
     // 모든 Awake가 끝난 뒤 Start가 불리므로, 화면은 Awake에서 Flow.Logged를 구독하면 라운드 시작 로그부터 받는다
     private void Awake()
     {
-        Flow = new GameFlow(_ruleSettings, _roundSettings, new System.Random());
+        Flow = new GameFlow(_ruleSettings, _roundSettings, _dealerSettings, new System.Random());
     }
 
     private void Start()
