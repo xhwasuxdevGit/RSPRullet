@@ -18,4 +18,3 @@ MonoBehaviour:
   _attackFullSetDamage: 1
   _healFullSetAmount: 1
   _tripleDamage: 3
-  _dealerClockChance: 0.85

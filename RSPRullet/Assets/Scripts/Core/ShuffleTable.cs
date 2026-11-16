@@ -19,9 +19,23 @@ public class ShuffleTable
 
     public int RemainingDeckCount => _deck.RemainingCount;
 
+    // 카드 셔플 시작 때의 손 모양별 장수 (카드풀 구성, 항상 공개되는 정보).
+    // 더미는 카드를 뽑으면 줄어들므로, 7장이 모두 더미에 있는 생성 시점에 한 번 기록해 둔다
+    private readonly Dictionary<HandShape, int> _poolCardCounts = new Dictionary<HandShape, int>();
+
     public ShuffleTable(CardDeck deck)
     {
         _deck = deck;
+        foreach (HandShape shape in System.Enum.GetValues(typeof(HandShape)))
+        {
+            _poolCardCounts[shape] = deck.GetCardCount(shape);
+        }
+    }
+
+    // 카드풀 구성: 이번 카드 셔플의 카드풀에서 shape인 카드 수 (3장 또는 2장)
+    public int GetPoolCardCount(HandShape shape)
+    {
+        return _poolCardCounts[shape];
     }
 
     public static Side Opponent(Side side)
@@ -110,7 +124,7 @@ public class ShuffleTable
     }
 
     // viewer가 내용을 아는 테이블 위 카드 목록 (양쪽 조합 칸 + 뽑아서 확인 중인 카드).
-    // 딜러 판단은 GetKnownCards(Side.Dealer)로 받은 카드만 써야 한다 (컨셉 기획서 7장 치트 금지)
+    // 딜러 판단은 이 목록 대신 딜러가 아는 정보(DealerKnownInfo)를 거친다 (딜러 AI 세부 기획서 2장 치트 금지)
     public List<Card> GetKnownCards(Side viewer)
     {
         var knownCards = new List<Card>();

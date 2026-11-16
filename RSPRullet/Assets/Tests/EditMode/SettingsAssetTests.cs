@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEditor;
 
-// Assets/SO의 설정 에셋을 실제로 읽어, 기획서 값(코어 규칙 상세 기획서 7-1-1장, 게임 컨셉 기획서 2·9장)과 같은지 확인한다
+// Assets/SO의 설정 에셋을 실제로 읽어, 기획서 값(코어 규칙 상세 기획서 7-1-1장, 게임 컨셉 기획서 2·9장, 딜러 AI 세부 기획서 7-1-1장)과 같은지 확인한다
 public class SettingsAssetTests
 {
     private const string Folder = "Assets/SO";
@@ -32,6 +32,18 @@ public class SettingsAssetTests
         Assert.AreEqual(1, settings.AttackFullSetDamage);
         Assert.AreEqual(1, settings.HealFullSetAmount);
         Assert.AreEqual(3, settings.TripleDamage);
-        Assert.AreEqual(0.85f, settings.DealerClockChance, 0.0001f);
+    }
+
+    // 딜러 AI 세부 기획서 7-1-1장 기본값. 시계 사용 확률은 규칙 설정 에셋에서 옮겨 온 값(0.85)을 유지한다
+    [Test]
+    public void DealerSettings_MatchPlannedValues()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<DealerSettings>($"{Folder}/DealerSettings.asset");
+
+        Assert.IsNotNull(settings);
+        Assert.AreEqual(1f, settings.StrengthCorrectionRate, 0.0001f);
+        Assert.AreEqual(1f, settings.RuleComplianceRate, 0.0001f);
+        Assert.AreEqual(0.85f, settings.ClockUseChance, 0.0001f);
+        Assert.AreEqual(0.5f, settings.CoffeeUseThreshold, 0.0001f);
     }
 }

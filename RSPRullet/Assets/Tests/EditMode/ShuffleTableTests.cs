@@ -246,4 +246,17 @@ public class ShuffleTableTests
         Assert.AreEqual(rock, table.GetUnrevealedCardCount(HandShape.Rock));
         Assert.AreEqual(paper, table.GetUnrevealedCardCount(HandShape.Paper));
     }
+
+    // 카드풀 구성은 카드를 나누고 뽑아도 카드 셔플 시작 때 값(가위 3 · 바위 2 · 보 2) 그대로다
+    [Test]
+    public void GetPoolCardCount_KeepsShuffleStartComposition_AfterDraws()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        Assert.AreEqual(3, table.GetPoolCardCount(HandShape.Scissors));
+        Assert.AreEqual(2, table.GetPoolCardCount(HandShape.Rock));
+        Assert.AreEqual(2, table.GetPoolCardCount(HandShape.Paper));
+    }
 }
