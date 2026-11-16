@@ -242,4 +242,65 @@ public class DealerAITests
 
         Assert.AreEqual(DealerChoice.Either, MakeDealer(1).JudgeCombination(knownInfo));
     }
+
+    // 딜러 AI 세부 기획서 6장 예시 1: 카드풀 바위 3, 뽑은 카드 보 → 보는 3장인 바위를 이김 → 카드를 가진다.
+    // 공개된 카드와 뽑은 카드를 빼고 따졌다면 남은 카드는 바위 2·가위 2라 상관없음이 되므로,
+    // 1번째 판에는 나온 카드를 따지지 않고 셔플 직후 구성 그대로 본다는 것도 함께 확인한다 (딜러 AI 세부 기획서 3-1장)
+    [Test]
+    public void JudgeThisMatch_FirstMatch_DrawnBeatsTripleShape_KeepsWithoutCounting()
+    {
+        var knownInfo = MakeOrderedFirstMatchDealerDrawn(R, P, P, R, R, S, S);
+
+        Assert.AreEqual(2, knownInfo.GetUnknownCardCount(R));
+        Assert.AreEqual(2, knownInfo.GetUnknownCardCount(S));
+        Assert.AreEqual(DealerChoice.Keep, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
+
+    // 딜러 AI 세부 기획서 3-2장: 카드풀 바위 3, 뽑은 카드 가위 → 가위는 3장인 바위에게 짐 → 카드를 준다
+    [Test]
+    public void JudgeThisMatch_FirstMatch_DrawnLosesToTripleShape_Gives()
+    {
+        var knownInfo = MakeOrderedFirstMatchDealerDrawn(R, P, S, R, R, S, P);
+
+        Assert.AreEqual(DealerChoice.Give, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 5: 카드풀 바위 3, 뽑은 카드 바위 → 3장인 손모양 자체라 이기는 수와 지는 수가 2장씩 같음 → 상관없음
+    [Test]
+    public void JudgeThisMatch_FirstMatch_DrawnIsTripleShape_ReturnsEither()
+    {
+        var knownInfo = MakeOrderedFirstMatchDealerDrawn(S, R, R, R, S, P, P);
+
+        Assert.AreEqual(DealerChoice.Either, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 2: 뽑은 카드 바위, 모르는 카드 가위·보 1장씩 → 이기는 수와 지는 수가 같음 → 상관없음
+    [Test]
+    public void JudgeThisMatch_SecondMatch_Example2_ReturnsEither()
+    {
+        var knownInfo = MakeOrderedSecondMatchDealerDrawn(Side.Player, R, S, P, R, R, S, P);
+
+        Assert.AreEqual(DealerChoice.Either, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 3: 뽑은 카드 보, 모르는 카드 가위 2장 → 지는 손모양만 남음 → 카드를 준다.
+    // 1번째 판처럼 셔플 직후 구성(보 3 / 가위 2 / 바위 2)으로 봤다면 상관없음이 되므로,
+    // 2번째 판에는 공개된 카드와 뽑은 카드를 빼고 따지는 것도 함께 확인한다
+    [Test]
+    public void JudgeThisMatch_SecondMatch_Example3_GivesByUnknownCards()
+    {
+        var knownInfo = MakeOrderedSecondMatchDealerDrawn(Side.Dealer, R, P, P, R, P, S, S);
+
+        Assert.AreEqual(DealerChoice.Give, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
+
+    // 딜러 AI 세부 기획서 3-2장: 뽑은 카드 바위, 모르는 카드 바위 2장 → 비기는 손모양은 세지 않아 0 대 0 → 상관없음
+    [Test]
+    public void JudgeThisMatch_SecondMatch_OnlyDrawShapesUnknown_ReturnsEither()
+    {
+        var knownInfo = MakeOrderedSecondMatchDealerDrawn(Side.Dealer, P, S, S, P, R, R, R);
+
+        Assert.AreEqual(2, knownInfo.GetUnknownCardCount(R));
+        Assert.AreEqual(DealerChoice.Either, MakeDealer(1).JudgeThisMatch(knownInfo));
+    }
 }

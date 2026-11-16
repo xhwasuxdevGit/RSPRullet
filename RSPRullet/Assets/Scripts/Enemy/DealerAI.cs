@@ -34,6 +34,34 @@ public class DealerAI
         return true;
     }
 
+    // ② 이번 판 승패 판단 규칙 (딜러 AI 세부 기획서 3-2장).
+    // 뽑은 카드가 이기는 손모양의 수와 지는 손모양의 수를 비교해 이번 판을 이길 가능성이 높은 쪽을 돌려준다.
+    // 비기는 손모양은 세지 않고, 두 수가 같으면 상관없음이다
+    public DealerChoice JudgeThisMatch(DealerKnownInfo knownInfo)
+    {
+        int winCount = 0;
+        int loseCount = 0;
+
+        foreach (HandShape shape in System.Enum.GetValues(typeof(HandShape)))
+        {
+            if (HandShapeRules.Beats(knownInfo.DrawnShape, shape))
+            {
+                winCount += GetThisMatchCardCount(knownInfo, shape);
+            }
+            else if (HandShapeRules.Beats(shape, knownInfo.DrawnShape))
+            {
+                loseCount += GetThisMatchCardCount(knownInfo, shape);
+            }
+        }
+
+        if (winCount == loseCount)
+        {
+            return DealerChoice.Either;
+        }
+
+        return winCount > loseCount ? DealerChoice.Keep : DealerChoice.Give;
+    }
+
     // ① 조합 판단 규칙 (딜러 AI 세부 기획서 3-3장). 뽑은 카드를 가질 때와 줄 때 중 카드 조합에 더 유리한 쪽을 돌려준다
     public DealerChoice JudgeCombination(DealerKnownInfo knownInfo)
     {
@@ -43,11 +71,22 @@ public class DealerAI
     }
 
     // 카드 분배 판단 (딜러 AI 세부 기획서 3장). 딜러가 아는 정보만 받아 가진다(true) / 준다(false)를 돌려준다.
-    // ② 이번 판 판단(RSP-46), ③ 충돌 해결과 무작위 단계(RSP-47)가 들어오기 전까지는 50:50으로 고른다.
-    // ① 조합 판단(JudgeCombination)은 ③ 충돌 해결(RSP-47)에서 이 메서드에 연결한다
+    // ③ 충돌 해결과 무작위 단계(RSP-47)가 들어오기 전까지는 50:50으로 고른다.
+    // ② 이번 판 판단(JudgeThisMatch)과 ① 조합 판단(JudgeCombination)은 ③ 충돌 해결(RSP-47)에서 이 메서드에 연결한다
     private bool ChooseKeep(DealerKnownInfo knownInfo)
     {
         return _random.Next(2) == 0;
+    }
+
+    // ② 이번 판 판단에서 판단 근거를 위해 남은 카드를 어떻게 계산할지 정한다. (딜러 AI 세부 기획서 3-1장).
+    // 1번째 판: 딜러는 셔플 직후처럼 3장인 손모양 3장·나머지 손모양 2장씩이 그대로 남아 있다고 여긴다.
+    // - > "뽑은 카드가 3장인 손모양을 이기면 가진다, 지면 준다"와 같다
+    // 2번째 판: 공개된 카드와 딜러가 직접 본 카드(뽑은 카드 등)를 빼고, 정체를 모르는 카드만 남았다고 보고 비교한다
+    private static int GetThisMatchCardCount(DealerKnownInfo knownInfo, HandShape shape)
+    {
+        return knownInfo.MatchIndex == FirstMatchIndex
+            ? knownInfo.GetPoolCardCount(shape)
+            : knownInfo.GetUnknownCardCount(shape);
     }
 
     // 1번째 판: 시작 카드가 3장인 손모양인지와 뽑은 카드가 시작 카드와 같은지로 정한다.
