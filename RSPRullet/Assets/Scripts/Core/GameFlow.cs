@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 라운드 하나의 진행 흐름. 진행 단계(PhaseMachine), 셔플 테이블(ShuffleTable), 체력(HealthState), 임시 딜러(RandomDealer)를 한 흐름으로 묶는다.
+// 라운드 하나의 진행 흐름. 진행 단계(PhaseMachine), 셔플 테이블(ShuffleTable), 체력(HealthState), 딜러 AI(DealerAI)를 한 흐름으로 묶는다.
 // 플레이어 입력이 필요한 지점(뽑기, 분배, 판 결과 확인, 정산 확인)에서만 멈추고, 나머지 단계는 시간 없이 바로 진행한다.
 // 연출 대기 시간은 화면 쪽이 맡는다 (기술 문서 04. 진행 단계 관리 3장 설계 의도).
 // 화면을 참조하지 않으며, 화면은 상태 조회와 Logged 이벤트만 쓴다.
@@ -12,7 +12,7 @@ public class GameFlow
     private readonly System.Random _random;
     private readonly PhaseMachine _phaseMachine = new PhaseMachine();
     private readonly HealthState _health;
-    private readonly RandomDealer _dealer;
+    private readonly DealerAI _dealer;
 
     // 카드 셔플마다 새로 만든다. StartRound 이후에 값이 있다
     private ShuffleTable _table;
@@ -34,7 +34,7 @@ public class GameFlow
     {
         _random = random;
         _health = new HealthState(rules, round.StartHealth);
-        _dealer = new RandomDealer(random);
+        _dealer = new DealerAI(random);
     }
 
     public int GetHealth(Side side)
@@ -151,7 +151,7 @@ public class GameFlow
 
         Card drawnCard = _table.DrawForTurnPlayer();
         _phaseMachine.CompleteDraw();
-        _dealer.TryDistribute(_table);
+        _dealer.TryDistribute(_table, MatchIndex);
 
         // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
         IReadOnlyList<Card> dealerSlots = _table.GetCombinationSlots(Side.Dealer);
