@@ -1,0 +1,76 @@
+using NUnit.Framework;
+
+// 단계별 버튼과 입력 잠금 규칙 (UI·UX 화면 흐름 세부 기획서 6-1장 단계별 버튼, 6-2장 입력 잠금)
+public class PhaseButtonRulesTests
+{
+    [TestCase(Side.Player, PhaseButton.DrawCard)]
+    [TestCase(Side.Dealer, PhaseButton.None)]
+    public void Draw_OnlyPlayerTurnShowsDrawCard(Side turnPlayer, PhaseButton expected)
+    {
+        Assert.AreEqual(expected, GetButtons(GamePhase.Draw, turnPlayer));
+    }
+
+    [TestCase(Side.Player, PhaseButton.Keep | PhaseButton.Give)]
+    [TestCase(Side.Dealer, PhaseButton.None)]
+    public void Distribute_OnlyPlayerTurnShowsKeepAndGive(Side turnPlayer, PhaseButton expected)
+    {
+        Assert.AreEqual(expected, GetButtons(GamePhase.Distribute, turnPlayer));
+    }
+
+    // 턴 플레이어 아이템 단계는 턴 플레이어가, 상대 아이템 단계는 상대가 입력한다
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Player, true, PhaseButton.ItemDone)]
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Player, false, PhaseButton.NoItem)]
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Dealer, true, PhaseButton.None)]
+    [TestCase(GamePhase.ItemOpponent, Side.Dealer, true, PhaseButton.ItemDone)]
+    [TestCase(GamePhase.ItemOpponent, Side.Dealer, false, PhaseButton.NoItem)]
+    [TestCase(GamePhase.ItemOpponent, Side.Player, true, PhaseButton.None)]
+    public void ItemPhase_PlayerSeesItemDoneOrNoItem(GamePhase phase, Side turnPlayer, bool hasUsableItem, PhaseButton expected)
+    {
+        PhaseButton buttons = PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem, playerWonRound: false, isFinalRound: false);
+
+        Assert.AreEqual(expected, buttons);
+    }
+
+    [Test]
+    public void Settlement_ShowsNextShuffle()
+    {
+        Assert.AreEqual(PhaseButton.NextShuffle, GetButtons(GamePhase.Settlement, Side.Player));
+    }
+
+    [TestCase(true, false, PhaseButton.NextRound)]
+    [TestCase(false, false, PhaseButton.TakeMedicine)]
+    [TestCase(true, true, PhaseButton.Restart)]
+    [TestCase(false, true, PhaseButton.Restart)]
+    public void RoundEnd_ShowsButtonByResultAndRound(bool playerWonRound, bool isFinalRound, PhaseButton expected)
+    {
+        PhaseButton buttons = PhaseButtonRules.GetButtons(GamePhase.RoundEnd, Side.Player, hasUsableItem: false, playerWonRound, isFinalRound);
+
+        Assert.AreEqual(expected, buttons);
+    }
+
+    // 판-07 승패 판정 표시를 포함한 자동 진행 단계는 버튼이 없다
+    [TestCase(GamePhase.RoundStart)]
+    [TestCase(GamePhase.CardShuffle)]
+    [TestCase(GamePhase.StartCardDeal)]
+    [TestCase(GamePhase.DecideFirst)]
+    [TestCase(GamePhase.Reveal)]
+    [TestCase(GamePhase.Judge)]
+    [TestCase(GamePhase.ShowResult)]
+    public void AutoPhase_HasNoButtons(GamePhase phase)
+    {
+        Assert.AreEqual(PhaseButton.None, GetButtons(phase, Side.Player));
+    }
+
+    [Test]
+    public void IsInputLocked_TrueOnlyWhenNoButtons()
+    {
+        Assert.IsTrue(PhaseButtonRules.IsInputLocked(PhaseButton.None));
+        Assert.IsFalse(PhaseButtonRules.IsInputLocked(PhaseButton.DrawCard));
+        Assert.IsFalse(PhaseButtonRules.IsInputLocked(PhaseButton.Keep | PhaseButton.Give));
+    }
+
+    private static PhaseButton GetButtons(GamePhase phase, Side turnPlayer)
+    {
+        return PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem: false, playerWonRound: false, isFinalRound: false);
+    }
+}
