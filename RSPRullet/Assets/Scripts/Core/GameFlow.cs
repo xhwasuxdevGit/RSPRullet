@@ -29,9 +29,9 @@ public class GameFlow
     public Card DrawnCard => _table.DrawnCard;
     public int RemainingDeckCount => _table.RemainingDeckCount;
 
-    // 딜러가 턴 플레이어인 판의 시작에서 딜러의 행동을 기다리는 중인지 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03).
-    // 고민 중 대기 시간은 화면 쪽(GameFlowRunner)이 재고, 끝나면 PlayDealerTurn을 부른다
-    public bool IsWaitingForDealer => CurrentPhase == GamePhase.Draw && TurnPlayer == Side.Dealer;
+    // 딜러가 턴 플레이어인 판에서, 딜러가 뽑은 카드를 확인하며 분배를 고민하는 중인지 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03).
+    // 딜러는 판 시작 때 먼저 뽑아 두므로 분배 단계에서 기다린다. 고민 중 대기 시간은 화면 쪽(GameFlowRunner)이 재고, 끝나면 PlayDealerTurn을 부른다
+    public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && TurnPlayer == Side.Dealer;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
@@ -93,7 +93,7 @@ public class GameFlow
         return true;
     }
 
-    // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 뽑고 분배한 뒤 판정까지 진행한다
+    // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 이미 뽑아 둔 카드를 분배한 뒤 판정까지 진행한다
     public bool PlayDealerTurn()
     {
         if (!IsWaitingForDealer)
@@ -101,8 +101,8 @@ public class GameFlow
             return Ignore(nameof(PlayDealerTurn));
         }
 
-        Card drawnCard = _table.DrawForTurnPlayer();
-        _phaseMachine.CompleteDraw();
+        // 분배하면 DrawnCard가 비므로 먼저 받아 둔다
+        Card drawnCard = _table.DrawnCard;
         _dealer.TryDistribute(_table, MatchIndex);
 
         // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
@@ -165,10 +165,19 @@ public class GameFlow
         BeginMatch();
     }
 
-    // 판 시작. 플레이어 차례면 카드 뽑기 입력을, 딜러 차례면 고민 중 대기 뒤의 PlayDealerTurn을 기다린다
+    // 판 시작. 플레이어 차례면 카드 뽑기 입력을 기다린다.
+    // 딜러 차례면 딜러가 바로 뽑고, 뽑은 카드를 보여 주는 고민 중 대기 뒤의 PlayDealerTurn을 기다린다 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03)
     private void BeginMatch()
     {
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
+        if (TurnPlayer != Side.Dealer)
+        {
+            return;
+        }
+
+        _table.DrawForTurnPlayer();
+        _phaseMachine.CompleteDraw();
+        Log("딜러가 카드를 뽑았다 (딜러만 앎)");
     }
 
     // 아이템 단계 통과 → 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
