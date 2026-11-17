@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-// S1 임시 디버그 UI (RSP-30). 정식 UI(S2) 전까지 진행 흐름(GameFlow)을 버튼으로 진행하고 상태를 글자로 확인한다.
+// S1 임시 디버그 UI (RSP-30). 정식 UI(S2) 전까지 진행 흐름(GameFlow)의 상태를 글자로 확인한다.
+// 진행 버튼은 RSP-42에서 단계별 버튼(PhaseButtonsUI)으로 옮겼다.
 // Canvas·Prefab 없이 스크립트 하나로 두려고 IMGUI(OnGUI)로 만든다. 정식 UI가 생기면 이 파일과 씬의 컴포넌트를 지운다.
 // 카드 내용은 플레이어가 아는 카드만 보여준다 (게임 컨셉 기획서 6장 정보 공개 규칙)
 public class FlowDebugUI : MonoBehaviour
@@ -40,8 +41,6 @@ public class FlowDebugUI : MonoBehaviour
 
         GUILayout.BeginArea(new Rect(Margin, Margin, PanelWidth, height), GUI.skin.box);
         DrawStatus();
-        GUILayout.Space(Margin);
-        DrawButtons();
         GUILayout.EndArea();
 
         GUILayout.BeginArea(new Rect(width - PanelWidth - Margin, Margin, PanelWidth, height), GUI.skin.box);
@@ -62,44 +61,6 @@ public class FlowDebugUI : MonoBehaviour
         GUILayout.Label($"뽑은 카드: {GetDrawnCardText()}");
         GUILayout.Label($"딜러 조합 칸: {GetSlotsText(Side.Dealer)}");
         GUILayout.Label($"내 조합 칸: {GetSlotsText(Side.Player)}");
-    }
-
-    // 버튼은 지금 단계에서 받는 입력만 켠다. 꺼진 버튼을 눌러도 GameFlow가 입력을 무시한다
-    private void DrawButtons()
-    {
-        GamePhase phase = _flow.CurrentPhase;
-
-        GUI.enabled = phase == GamePhase.Draw && _flow.TurnPlayer == Side.Player;
-        if (GUILayout.Button("카드 뽑기"))
-        {
-            _flow.DrawCard();
-        }
-
-        GUI.enabled = phase == GamePhase.Distribute;
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("가진다"))
-        {
-            _flow.Distribute(keep: true);
-        }
-        if (GUILayout.Button("준다"))
-        {
-            _flow.Distribute(keep: false);
-        }
-        GUILayout.EndHorizontal();
-
-        GUI.enabled = phase == GamePhase.ShowResult;
-        if (GUILayout.Button("다음 판"))
-        {
-            _flow.Next();
-        }
-
-        GUI.enabled = phase == GamePhase.Settlement;
-        if (GUILayout.Button("다음 카드 셔플"))
-        {
-            _flow.Next();
-        }
-
-        GUI.enabled = true;
     }
 
     private string GetDrawnCardText()

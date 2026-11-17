@@ -89,7 +89,7 @@ public class GameFlow
         return true;
     }
 
-    // 판 결과 확인 또는 정산 확인 뒤 다음으로 넘어간다 (디버그 UI의 다음 판 / 다음 카드 셔플)
+    // 판 결과 확인 또는 정산 확인 뒤 다음으로 넘어간다 (판 결과는 GameFlowRunner의 자동 진행, 정산은 다음 카드 셔플 버튼)
     public bool Next()
     {
         if (CurrentPhase == GamePhase.ShowResult)
