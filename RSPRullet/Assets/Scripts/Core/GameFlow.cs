@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // 라운드 하나의 진행 흐름. 진행 단계(PhaseMachine), 셔플 테이블(ShuffleTable), 체력(HealthState), 딜러 AI(DealerAI)를 한 흐름으로 묶는다.
-// 플레이어 입력이 필요한 지점(뽑기, 분배, 판 결과 확인, 정산 확인)에서만 멈추고, 나머지 단계는 시간 없이 바로 진행한다.
+// 플레이어 입력이 필요한 지점(뽑기, 분배, 판 결과 확인, 정산 확인)과 딜러 차례 시작(고민 중 대기)에서만 멈추고, 나머지 단계는 시간 없이 바로 진행한다.
 // 연출 대기 시간은 화면 쪽이 맡는다 (기술 문서 04. 진행 단계 관리 3장 설계 의도).
 // 화면을 참조하지 않으며, 화면은 상태 조회와 Logged 이벤트만 쓴다.
 // 라운드마다 새로 만든다. S1 범위라 아이템 단계는 바로 통과하고, 시계 이월은 항상 없음으로 둔다.
@@ -28,6 +28,10 @@ public class GameFlow
     public Side TurnPlayer => _table.TurnPlayer;
     public Card DrawnCard => _table.DrawnCard;
     public int RemainingDeckCount => _table.RemainingDeckCount;
+
+    // 딜러가 턴 플레이어인 판의 시작에서 딜러의 행동을 기다리는 중인지 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03).
+    // 고민 중 대기 시간은 화면 쪽(GameFlowRunner)이 재고, 끝나면 PlayDealerTurn을 부른다
+    public bool IsWaitingForDealer => CurrentPhase == GamePhase.Draw && TurnPlayer == Side.Dealer;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
@@ -89,6 +93,27 @@ public class GameFlow
         return true;
     }
 
+    // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 뽑고 분배한 뒤 판정까지 진행한다
+    public bool PlayDealerTurn()
+    {
+        if (!IsWaitingForDealer)
+        {
+            return Ignore(nameof(PlayDealerTurn));
+        }
+
+        Card drawnCard = _table.DrawForTurnPlayer();
+        _phaseMachine.CompleteDraw();
+        _dealer.TryDistribute(_table, MatchIndex);
+
+        // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
+        IReadOnlyList<Card> dealerSlots = _table.GetCombinationSlots(Side.Dealer);
+        bool dealerKept = dealerSlots[dealerSlots.Count - 1] == drawnCard;
+        Log(dealerKept ? "딜러가 카드를 가졌다" : "딜러가 카드를 플레이어에게 줬다");
+        _phaseMachine.CompleteDistribute();
+        ResolveMatch();
+        return true;
+    }
+
     // 판 결과 확인 또는 정산 확인 뒤 다음으로 넘어간다 (판 결과는 GameFlowRunner의 자동 진행, 정산은 다음 카드 셔플 버튼)
     public bool Next()
     {
@@ -140,25 +165,10 @@ public class GameFlow
         BeginMatch();
     }
 
-    // 판 시작. 딜러 차례면 딜러가 뽑고 분배까지 바로 하고, 플레이어 차례면 카드 뽑기 입력을 기다린다
+    // 판 시작. 플레이어 차례면 카드 뽑기 입력을, 딜러 차례면 고민 중 대기 뒤의 PlayDealerTurn을 기다린다
     private void BeginMatch()
     {
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
-        if (TurnPlayer == Side.Player)
-        {
-            return;
-        }
-
-        Card drawnCard = _table.DrawForTurnPlayer();
-        _phaseMachine.CompleteDraw();
-        _dealer.TryDistribute(_table, MatchIndex);
-
-        // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
-        IReadOnlyList<Card> dealerSlots = _table.GetCombinationSlots(Side.Dealer);
-        bool dealerKept = dealerSlots[dealerSlots.Count - 1] == drawnCard;
-        Log(dealerKept ? "딜러가 카드를 가졌다" : "딜러가 카드를 플레이어에게 줬다");
-        _phaseMachine.CompleteDistribute();
-        ResolveMatch();
     }
 
     // 아이템 단계 통과 → 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
