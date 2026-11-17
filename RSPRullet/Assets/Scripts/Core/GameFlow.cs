@@ -29,6 +29,14 @@ public class GameFlow
     public Card DrawnCard => _table.DrawnCard;
     public int RemainingDeckCount => _table.RemainingDeckCount;
 
+    // 카드풀 정보의 "n장 → n장" (UI·UX 화면 흐름 세부 기획서 5-4장 카드풀).
+    // 판 시작 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값("3장 → 1장")이 그대로 남는다
+    public int MatchStartDeckCount { get; private set; }
+    public int MatchEndDeckCount => MatchStartDeckCount - CardsPerMatch;
+
+    // 한 판에 더미에서 나가는 카드: 뽑은 카드 1장 + 남은 자리에 들어가는 더미의 다음 카드 1장 (ShuffleTable.Distribute)
+    private const int CardsPerMatch = 2;
+
     // 딜러가 턴 플레이어인 판에서, 딜러가 뽑은 카드를 확인하며 분배를 고민하는 중인지 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03).
     // 딜러는 판 시작 때 먼저 뽑아 두므로 분배 단계에서 기다린다. 고민 중 대기 시간은 화면 쪽(GameFlowRunner)이 재고, 끝나면 PlayDealerTurn을 부른다
     public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && TurnPlayer == Side.Dealer;
@@ -49,6 +57,12 @@ public class GameFlow
     public IReadOnlyList<Card> GetCombinationSlots(Side side)
     {
         return _table.GetCombinationSlots(side);
+    }
+
+    // 이번 카드 셔플의 카드풀 구성 (항상 공개되는 정보). 카드 셔플 동안 바뀌지 않는다
+    public int GetPoolCardCount(HandShape shape)
+    {
+        return _table.GetPoolCardCount(shape);
     }
 
     // 라운드 시작 → 첫 번째 카드 셔플 → 첫 번째 판의 입력 대기 지점까지 진행한다
@@ -169,6 +183,8 @@ public class GameFlow
     // 딜러 차례면 딜러가 바로 뽑고, 뽑은 카드를 보여 주는 고민 중 대기 뒤의 PlayDealerTurn을 기다린다 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03)
     private void BeginMatch()
     {
+        // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 기록한다
+        MatchStartDeckCount = _table.RemainingDeckCount;
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
         if (TurnPlayer != Side.Dealer)
         {

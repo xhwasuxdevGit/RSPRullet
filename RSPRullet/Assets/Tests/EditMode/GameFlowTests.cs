@@ -270,6 +270,68 @@ public class GameFlowTests
         Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
     }
 
+    // 카드풀 정보 (RSP-38). UI·UX 화면 흐름 세부 기획서 5-4장 카드풀:
+    // 첫 번째 판 "5장 → 3장", 두 번째 판 "3장 → 1장", 정산 중에는 두 번째 판 값 유지
+    [Test]
+    public void MatchDeckCount_FollowsMatch_AndStaysDuringSettlement()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            Assert.AreEqual(5, flow.MatchStartDeckCount);
+            Assert.AreEqual(3, flow.MatchEndDeckCount);
+
+            PlayTurn(flow);
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(3, flow.MatchStartDeckCount);
+            Assert.AreEqual(1, flow.MatchEndDeckCount);
+
+            PlayTurn(flow);
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.Settlement)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(3, flow.MatchStartDeckCount);
+            Assert.AreEqual(1, flow.MatchEndDeckCount);
+            return;
+        }
+
+        Assert.Fail("정산까지 가는 시드를 찾지 못했다");
+    }
+
+    // 카드풀 구성 개수는 3·2·2이고, 카드를 뽑아도 줄지 않는다
+    [Test]
+    public void PoolCardCount_IsComposition_AndUnchangedByDraw()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            int[] before = GetPoolCounts(flow);
+            CollectionAssert.AreEquivalent(
+                new[] { GameRules.TripleShapeCardCount, GameRules.OtherShapeCardCount, GameRules.OtherShapeCardCount }, before);
+
+            PlayTurn(flow);
+            CollectionAssert.AreEqual(before, GetPoolCounts(flow));
+        }
+    }
+
+    private static int[] GetPoolCounts(GameFlow flow)
+    {
+        return new[]
+        {
+            flow.GetPoolCardCount(HandShape.Scissors),
+            flow.GetPoolCardCount(HandShape.Rock),
+            flow.GetPoolCardCount(HandShape.Paper)
+        };
+    }
+
     [Test]
     public void InputInWrongPhase_IsIgnored()
     {
