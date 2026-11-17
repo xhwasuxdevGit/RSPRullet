@@ -23,6 +23,13 @@ public class GameFlow
     // 진행 로그 한 줄 (화면의 진행 로그 표시용)
     public event Action<string> Logged;
 
+    // 판정 기록 한 줄: 선 정하기, 각 판의 판정, 정산 결과 (UI·UX 화면 흐름 세부 기획서 5-5장 판정 기록, JudgmentRecordRules)
+    public event Action<string> JudgmentRecorded;
+
+    // 판정 기록을 비우는 신호. 카드 셔플(카드풀 공개, UI·UX 화면 흐름 세부 기획서 3-1장 셔플-02)이 시작될 때마다 보낸다.
+    // 선 정하기가 비겨 다시 섞을 때도 보낸다
+    public event Action JudgmentRecordCleared;
+
     public GamePhase CurrentPhase => _phaseMachine.CurrentPhase;
     public int MatchIndex => _phaseMachine.MatchIndex;
     public Side TurnPlayer => _table.TurnPlayer;
@@ -159,6 +166,7 @@ public class GameFlow
         bool isDecided;
         do
         {
+            JudgmentRecordCleared?.Invoke();
             _table = new ShuffleTable(new CardDeck(CardPool.Create(_random), _random));
             _phaseMachine.CompleteCardShuffle();
 
@@ -167,6 +175,7 @@ public class GameFlow
             _phaseMachine.CompleteStartCardDeal(hasClockCarryOver: false);
 
             isDecided = _table.DecideFirstTurnPlayer();
+            Record(JudgmentRecordRules.GetFirstTurnText(GetSlotShape(Side.Player, 0), GetSlotShape(Side.Dealer, 0)));
             _phaseMachine.CompleteDecideFirst(isDraw: !isDecided);
             if (!isDecided)
             {
@@ -208,7 +217,11 @@ public class GameFlow
 
         HandShape playerShape = GetLastSlotShape(Side.Player);
         HandShape dealerShape = GetLastSlotShape(Side.Dealer);
+        int playerHealthBefore = _health.GetHealth(Side.Player);
+        int dealerHealthBefore = _health.GetHealth(Side.Dealer);
         MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape);
+        Record(JudgmentRecordRules.GetMatchText(MatchIndex, playerShape, dealerShape,
+            _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetShapeName(playerShape)} vs {DisplayNames.GetShapeName(dealerShape)} → {GetResultName(playerResult)} " +
             $"(체력 플레이어 {_health.GetHealth(Side.Player)} / 딜러 {_health.GetHealth(Side.Dealer)})");
         _phaseMachine.CompleteJudge();
@@ -239,10 +252,15 @@ public class GameFlow
     {
         Card remaining = _table.RevealRemainingCard();
         Log($"정산: 남은 카드 {DisplayNames.GetShapeName(remaining.Shape)} 공개");
+        Record(JudgmentRecordRules.GetRemainingCardText(remaining.Shape));
 
         CombinationType playerCombination = JudgeCombination(Side.Player);
         CombinationType dealerCombination = JudgeCombination(Side.Dealer);
+        int playerHealthBefore = _health.GetHealth(Side.Player);
+        int dealerHealthBefore = _health.GetHealth(Side.Dealer);
         _isRoundOverAfterSettlement = _health.ApplySettlement(playerCombination, dealerCombination);
+        Record(JudgmentRecordRules.GetCombinationText(playerCombination, dealerCombination,
+            _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
         Log($"정산: 플레이어 {playerCombination}, 딜러 {dealerCombination} " +
             $"(체력 플레이어 {_health.GetHealth(Side.Player)} / 딜러 {_health.GetHealth(Side.Dealer)})");
     }
@@ -286,6 +304,11 @@ public class GameFlow
     {
         Debug.Log($"[GameFlow] {message}");
         Logged?.Invoke(message);
+    }
+
+    private void Record(string line)
+    {
+        JudgmentRecorded?.Invoke(line);
     }
 
     private static string GetResultName(MatchResult playerResult)
