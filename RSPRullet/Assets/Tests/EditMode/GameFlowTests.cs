@@ -64,7 +64,7 @@ public class GameFlowTests
     }
 
     [Test]
-    public void StartRound_StopsAtDraw_ForPlayerOrDealer()
+    public void StartRound_StopsAtPlayerDraw_OrDealerThinking()
     {
         bool sawPlayerTurn = false;
         bool sawDealerTurn = false;
@@ -72,8 +72,9 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            // 누구 차례든 뽑기 전에 멈추고, 딜러 차례일 때만 딜러를 기다리는 중이다
-            Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
+            // 플레이어 차례면 뽑기 전에, 딜러 차례면 딜러가 뽑은 뒤 분배 전에 멈춘다. 딜러 차례일 때만 딜러를 기다리는 중이다
+            GamePhase expectedPhase = flow.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
+            Assert.AreEqual(expectedPhase, flow.CurrentPhase);
             Assert.AreEqual(1, flow.GetCombinationSlots(Side.Player).Count);
             Assert.AreEqual(1, flow.GetCombinationSlots(Side.Dealer).Count);
             Assert.AreEqual(flow.TurnPlayer == Side.Dealer, flow.IsWaitingForDealer);
@@ -110,8 +111,9 @@ public class GameFlowTests
         Assert.Fail("플레이어가 선인 시드를 찾지 못했다");
     }
 
+    // 판-03: 딜러가 판 시작 때 먼저 뽑고, 뽑은 카드는 딜러만 안다 (UI·UX 화면 흐름 세부 기획서 3-1장, 4-2장)
     [Test]
-    public void PlayDealerTurn_DrawsAndDistributes_AndStopsAtResult()
+    public void DealerTurn_DrawsAtMatchStart_KnownOnlyByDealer()
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
@@ -121,9 +123,34 @@ public class GameFlowTests
                 continue;
             }
 
+            Assert.IsTrue(flow.IsWaitingForDealer);
+            Assert.IsNotNull(flow.DrawnCard);
+            Assert.IsTrue(flow.DrawnCard.KnownByDealer);
+            Assert.IsFalse(flow.DrawnCard.KnownByPlayer);
+            return;
+        }
+
+        Assert.Fail("딜러가 선인 시드를 찾지 못했다");
+    }
+
+    [Test]
+    public void PlayDealerTurn_DistributesDrawnCard_AndStopsAtResult()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.TurnPlayer != Side.Dealer)
+            {
+                continue;
+            }
+
+            Card drawn = flow.DrawnCard;
             Assert.IsTrue(flow.PlayDealerTurn());
             Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
             Assert.IsFalse(flow.IsWaitingForDealer);
+            Assert.IsNull(flow.DrawnCard);
+            // 가졌으면 딜러 자리, 줬으면 플레이어 자리에 뽑은 카드가 들어간다
+            Assert.IsTrue(flow.GetCombinationSlots(Side.Dealer)[1] == drawn || flow.GetCombinationSlots(Side.Player)[1] == drawn);
             Assert.AreEqual(2, flow.GetCombinationSlots(Side.Player).Count);
             Assert.AreEqual(2, flow.GetCombinationSlots(Side.Dealer).Count);
             return;
@@ -232,8 +259,10 @@ public class GameFlowTests
                 continue;
             }
 
+            // 플레이어가 선이면 뽑기 전, 딜러가 선이면 딜러가 뽑은 뒤 분배 전에 멈춘다
+            GamePhase expectedPhase = flow.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(0, flow.MatchIndex);
-            Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
+            Assert.AreEqual(expectedPhase, flow.CurrentPhase);
             Assert.AreEqual(1, flow.GetCombinationSlots(Side.Player).Count);
             return;
         }
