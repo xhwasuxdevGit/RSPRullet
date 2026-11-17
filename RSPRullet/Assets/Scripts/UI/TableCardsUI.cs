@@ -4,7 +4,7 @@ using UnityEngine;
 // 테이블 가운데 카드 표시: 양쪽 카드 슬롯, 더미 위로 들어 올린 뽑은 카드, 두 슬롯 사이의 교환 표시
 // (UI·UX 화면 흐름 세부 기획서 2-2장 카드 슬롯, 3-1장 판-02·판-03, 4장 카드 표시 규칙).
 // 진행 흐름(GameFlow)에 변경 이벤트가 없어 매 프레임 상태를 읽어 CardFaceRules로 표시를 정한다.
-// 카드 이동·뒤집기 연출은 RSP-63, 조합 칸 표시는 RSP-40에서 맡는다
+// 카드 이동·뒤집기 연출은 RSP-63, 조합 칸 표시는 CombinationSlotsUI에서 맡는다
 public class TableCardsUI : MonoBehaviour
 {
     [SerializeField] private GameFlowRunner _runner;
@@ -60,7 +60,8 @@ public class TableCardsUI : MonoBehaviour
         return slots[slots.Count - 1];
     }
 
-    private Sprite GetFrontSprite(HandShape shape)
+    // 카드 앞면 그림은 이 컴포넌트에만 연결해 두고, 조합 칸(CombinationSlotsUI)도 여기서 받아 쓴다
+    public Sprite GetFrontSprite(HandShape shape)
     {
         switch (shape)
         {

@@ -13,7 +13,7 @@ RSPRullet Credits
 - Boardgame Pack v2        : 카드 뒷면, 카드 앞면 바탕(숫자·무늬를 지운 빈 앞면)
 - Cursor Pack              : 눈 아이콘("상대가 알고 있음"), 돋보기 아이템 아이콘
 - Board Game Icons         : 커피 아이템 아이콘(resource_lumber), 교환 아이콘(arrow_reserve), 시계 아이템 아이콘(hourglass)
-- Game Icons               : 설정 버튼 아이콘(gear)
+- Game Icons               : 설정 버튼 아이콘(gear), 조합 칸 화살표(down)
 - UI Pack - RPG Expansion  : 버튼·패널
 
 ----------------------------------------
