@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__ccd_turn__update_plan",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/step-report-check.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(unity *)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/unity-dialog-check.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git pull*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guideline-change-check.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git merge*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guideline-change-check.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git switch*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guideline-change-check.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(unity *)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/unity-dialog-check.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
