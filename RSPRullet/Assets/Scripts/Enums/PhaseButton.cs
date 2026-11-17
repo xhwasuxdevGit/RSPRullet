@@ -7,7 +7,7 @@ public enum PhaseButton
     None = 0,
     DrawCard = 1 << 0,      // 판-01 카드 뽑기
     Keep = 1 << 1,          // 판-02 가진다
-    Give = 1 << 2,          // 판-02 넘겨준다
+    Give = 1 << 2,          // 판-02 준다
     ItemDone = 1 << 3,      // 판-04 아이템 사용 완료
     NoItem = 1 << 4,        // 판-04 아이템 없음 (쓸 수 있는 아이템이 0개일 때)
     NextShuffle = 1 << 5,   // 정산-02 다음 카드 셔플
