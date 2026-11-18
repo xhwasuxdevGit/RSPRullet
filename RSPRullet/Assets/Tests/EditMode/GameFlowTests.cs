@@ -363,4 +363,50 @@ public class GameFlowTests
             Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
         }
     }
+
+    // 판정 기록 (UI·UX 화면 흐름 세부 기획서 5-5장): 한 카드 셔플에 선 정하기 1줄, 판정 2줄, 정산 2줄이 순서대로 쌓이고,
+    // 다음 카드 셔플이 시작되면 비운다. 선 정하기가 비겨 다시 섞을 때도 비우므로 라운드 시작 직후에는 결정된 선 정하기 1줄만 남는다
+    [Test]
+    public void JudgmentRecord_KeepsResultLinesPerShuffle_AndClearsOnNextShuffle()
+    {
+        bool sawNextShuffle = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var lines = new List<string>();
+            flow.JudgmentRecorded += lines.Add;
+            flow.JudgmentRecordCleared += lines.Clear;
+
+            flow.StartRound();
+            Assert.AreEqual(1, lines.Count);
+            StringAssert.StartsWith("선 정하기:", lines[0]);
+            StringAssert.DoesNotContain("비김", lines[0]);
+
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(5, lines.Count);
+            StringAssert.StartsWith("첫 번째 판:", lines[1]);
+            StringAssert.StartsWith("두 번째 판:", lines[2]);
+            StringAssert.StartsWith("정산:", lines[3]);
+            StringAssert.StartsWith("조합:", lines[4]);
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                Assert.AreEqual(5, lines.Count);
+                continue;
+            }
+
+            sawNextShuffle = true;
+            Assert.AreEqual(1, lines.Count);
+            StringAssert.StartsWith("선 정하기:", lines[0]);
+        }
+
+        Assert.IsTrue(sawNextShuffle);
+    }
 }
