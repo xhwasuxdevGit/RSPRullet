@@ -3,7 +3,8 @@ using UnityEngine;
 
 // 테이블 가운데 카드 표시: 양쪽 카드 슬롯, 더미 위로 들어 올린 뽑은 카드, 두 슬롯 사이의 교환 표시
 // (UI·UX 화면 흐름 세부 기획서 2-2장 카드 슬롯, 3-1장 판-02·판-03, 4장 카드 표시 규칙).
-// 진행 흐름(GameFlow)에 변경 이벤트가 없어 매 프레임 상태를 읽어 CardFaceRules로 표시를 정한다.
+// 진행 흐름(GameFlow)의 단계·카드 변경 알림을 받을 때만 상태를 읽어 CardFaceRules로 표시를 정한다.
+// 눈 표시는 단계에 따라 꺼지므로(CardFaceRules.ShowsKnownMarker) 카드 알림뿐 아니라 단계 알림도 받는다.
 // 카드 이동·뒤집기 연출은 RSP-63, 조합 칸 표시는 CombinationSlotsUI에서 맡는다
 public class TableCardsUI : MonoBehaviour
 {
@@ -24,9 +25,22 @@ public class TableCardsUI : MonoBehaviour
     private void Awake()
     {
         _flow = _runner.Flow;
+        _flow.PhaseChanged += OnPhaseChanged;
+        _flow.CardsChanged += Refresh;
     }
 
-    private void Update()
+    private void OnDestroy()
+    {
+        _flow.PhaseChanged -= OnPhaseChanged;
+        _flow.CardsChanged -= Refresh;
+    }
+
+    private void OnPhaseChanged(GamePhase previous, GamePhase next)
+    {
+        Refresh();
+    }
+
+    private void Refresh()
     {
         GamePhase phase = _flow.CurrentPhase;
 
