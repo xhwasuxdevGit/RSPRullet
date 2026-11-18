@@ -36,6 +36,12 @@ public class GameFlow
     public Card DrawnCard => _table.DrawnCard;
     public int RemainingDeckCount => _table.RemainingDeckCount;
 
+    // 상단 정보 UI의 "n라운드"와 "카드 섞기 n번째" (UI·UX 화면 흐름 세부 기획서 5-1장 상단 정보 UI, TopInfoRules).
+    // 카드 셔플 번호는 딜러와 몇 번째 카드 셔플을 하는 중인지를 보여 주므로 카드 셔플을 시작할 때 1씩 늘린다.
+    // 선 정하기가 비겨 다시 섞는 것은 같은 카드 셔플을 다시 시작하는 것이라 늘리지 않는다
+    public int RoundNumber { get; }
+    public int ShuffleCount { get; private set; }
+
     // 카드풀 정보의 "n장 → n장" (UI·UX 화면 흐름 세부 기획서 5-4장 카드풀).
     // 판 시작 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값("3장 → 1장")이 그대로 남는다
     public int MatchStartDeckCount { get; private set; }
@@ -52,6 +58,7 @@ public class GameFlow
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
     {
         _random = random;
+        RoundNumber = round.RoundNumber;
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
     }
@@ -160,9 +167,10 @@ public class GameFlow
         return Ignore(nameof(Next));
     }
 
-    // 카드풀 생성 → 시작 카드 → 선 정하기. 선 정하기에서 비기면 카드풀부터 다시 만든다 (코어 규칙 상세 기획서 6장 예외 E1)
+    // 카드풀 생성 → 시작 카드 → 선 정하기. 선 정하기에서 비기면 카드풀부터 다시 만든다
     private void StartShuffle()
     {
+        ShuffleCount++;
         bool isDecided;
         do
         {

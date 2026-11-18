@@ -270,6 +270,65 @@ public class GameFlowTests
         Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
     }
 
+    // 상단 정보 UI (RSP-43). 라운드 번호는 라운드 설정 값을 그대로 쓴다
+    [Test]
+    public void RoundNumber_ComesFromRoundSettings()
+    {
+        var round = new SerializedObject(_round);
+        round.FindProperty("_roundNumber").intValue = 2;
+        round.ApplyModifiedPropertiesWithoutUndo();
+
+        GameFlow flow = StartFlow(0);
+
+        Assert.AreEqual(2, flow.RoundNumber);
+    }
+
+    // 상단 정보 UI (RSP-43). 카드 셔플 번호는 카드 셔플마다 늘고, 선 정하기 무승부로 다시 섞을 때는 늘지 않는다
+    [Test]
+    public void ShuffleCount_IncreasesPerShuffle_ExcludingDecideFirstDraw()
+    {
+        bool sawDraw = false;
+        bool sawNextShuffle = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            int drawCount = 0;
+            flow.Logged += log =>
+            {
+                // 판 판정의 무승부 로그와 구분하려고 선 정하기 무승부 문구로 센다
+                if (log.Contains("선 정하기 무승부"))
+                {
+                    drawCount++;
+                }
+            };
+            flow.StartRound();
+
+            Assert.AreEqual(1, flow.ShuffleCount);
+            sawDraw |= drawCount > 0;
+
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement)
+            {
+                continue;
+            }
+
+            // 정산 중에는 아직 같은 카드 셔플이다
+            Assert.AreEqual(1, flow.ShuffleCount);
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(2, flow.ShuffleCount);
+            sawNextShuffle = true;
+        }
+
+        Assert.IsTrue(sawDraw, "선 정하기 무승부가 나는 시드를 찾지 못했다");
+        Assert.IsTrue(sawNextShuffle, "정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
+    }
+
     // 카드풀 정보 (RSP-38). UI·UX 화면 흐름 세부 기획서 5-4장 카드풀:
     // 첫 번째 판 "5장 → 3장", 두 번째 판 "3장 → 1장", 정산 중에는 두 번째 판 값 유지
     [Test]

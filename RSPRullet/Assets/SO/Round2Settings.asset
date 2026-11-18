@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b2609bd69a410f140b40c29b8ee471f6, type: 3}
   m_Name: Round2Settings
   m_EditorClassIdentifier: RSPRullet::RoundSettings
+  _roundNumber: 2
   _startHealth: 4
   _itemCapacity: 4
   _itemsPerShuffle: 1

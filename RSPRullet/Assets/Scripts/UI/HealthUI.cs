@@ -3,7 +3,9 @@ using UnityEngine;
 
 // 한쪽(플레이어 또는 딜러)의 체력: 현재 체력 숫자와, 바뀔 때 숫자 옆에 잠깐 보여 주는 변화량
 // (UI·UX 화면 흐름 세부 기획서 2-2장 딜러 체력·하단 HUD 영역, 5-7장 체력).
-// 최대 체력은 표시하지 않는다. 딜러 체력과 내 체력은 Scene에서 같은 x(1920×1080 기준 700)에 둔다.
+// 최대 체력은 표시하지 않는다.
+// 위치를 Scene 뷰에서 바로 옮길 수 있도록 체력마다 World Space Canvas(TableLayout/DealerHealthCanvas·PlayerHealthCanvas)에 두고,
+// Canvas는 고정 카메라를 바라보게 둔다 (RSP-43). 두 숫자의 세로 정렬은 Scene에서 맞춘다.
 // 진행 흐름(GameFlow)에 체력 변경 이벤트가 없고 변화량 표시 시간도 재야 해서 매 프레임 상태를 읽는다.
 // 정산은 양쪽 조합 효과를 합산해 한 번에 반영하므로(HealthState.ApplySettlement) 변화량도 한 번만 나온다
 public class HealthUI : MonoBehaviour

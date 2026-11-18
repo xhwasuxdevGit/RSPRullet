@@ -4,6 +4,8 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "RoundSettings", menuName = "RSPRullet/Round Settings")]
 public class RoundSettings : ScriptableObject
 {
+    // 몇 번째 라운드인지 (UI·UX 화면 흐름 세부 기획서 5-1장 상단 정보 UI의 라운드 표시). 라운드 에셋마다 1·2·3을 넣는다
+    [SerializeField, Min(1)] private int _roundNumber = 1;
     [SerializeField] private int _startHealth = 3;
     [SerializeField] private int _itemCapacity;
     [SerializeField] private int _itemsPerShuffle;
@@ -11,6 +13,7 @@ public class RoundSettings : ScriptableObject
     // 아이템 데이터(RSP-51)가 생기기 전까지 시작 아이템은 돋보기 개수로만 둔다
     [SerializeField] private int _startMagnifierCount;
 
+    public int RoundNumber => _roundNumber;
     public int StartHealth => _startHealth;
     public int ItemCapacity => _itemCapacity;
     public int ItemsPerShuffle => _itemsPerShuffle;

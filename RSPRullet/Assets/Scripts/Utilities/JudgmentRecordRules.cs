@@ -38,7 +38,7 @@ public static class JudgmentRecordRules
                 break;
         }
 
-        return $"{GetMatchName(matchIndex)}: {GetVersusText(playerShape, dealerShape)}{NextLine}{result}, " +
+        return $"{DisplayNames.GetMatchName(matchIndex)}: {GetVersusText(playerShape, dealerShape)}{NextLine}{result}, " +
             GetHealthChangeText(playerHealthChange, dealerHealthChange);
     }
 
@@ -88,12 +88,6 @@ public static class JudgmentRecordRules
     private static string GetSideName(Side side)
     {
         return side == Side.Player ? "당신" : "딜러";
-    }
-
-    // 한 카드 셔플은 두 판이다 (matchIndex 0, 1)
-    private static string GetMatchName(int matchIndex)
-    {
-        return matchIndex == 0 ? "첫 번째 판" : "두 번째 판";
     }
 
     // 판정 기록판 너비 안에서 양쪽 조합이 한 줄에 들어가도록 "풀세트"를 빼고 줄여 쓴다 (RSP-41)
