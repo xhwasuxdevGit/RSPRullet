@@ -468,4 +468,121 @@ public class GameFlowTests
 
         Assert.IsTrue(sawNextShuffle);
     }
+
+    // 상태 변경 이벤트 (RSP-85). 단계 알림은 진행 단계가 바뀔 때마다 1회 오고, 카드 셔플 진입 알림은 보내지 않는다.
+    // 라운드 첫 카드 셔플 진입은 셔플 테이블이 없을 때라, 알림을 받은 화면이 턴 플레이어를 읽으면 오류가 난다
+    [Test]
+    public void PhaseChanged_ComesPerPhaseChange_ExceptEnteringCardShuffle()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var phases = new List<GamePhase>();
+            flow.PhaseChanged += (previous, next) =>
+            {
+                phases.Add(next);
+                // 알림을 받는 시점에 화면이 읽는 상태를 오류 없이 읽을 수 있어야 한다
+                Assert.DoesNotThrow(() => _ = flow.TurnPlayer);
+            };
+
+            flow.StartRound();
+            CollectionAssert.DoesNotContain(phases, GamePhase.CardShuffle);
+            Assert.AreEqual(flow.CurrentPhase, phases[phases.Count - 1]);
+
+            PlayTurn(flow);
+            phases.Clear();
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                continue;
+            }
+
+            // 첫 번째 판 결과 확인 뒤 두 번째 판 뽑기로 넘어간다. 딜러 차례면 딜러가 바로 뽑아 분배 단계까지 간다
+            GamePhase[] expected = flow.TurnPlayer == Side.Player
+                ? new[] { GamePhase.Draw }
+                : new[] { GamePhase.Draw, GamePhase.Distribute };
+            CollectionAssert.AreEqual(expected, phases, $"seed {seed}");
+        }
+    }
+
+    // 카드가 바뀌는 입력마다 카드 변경 알림이 온다: 플레이어 뽑기 1회, 분배 1회 + 판 카드 공개 1회
+    [Test]
+    public void CardsChanged_ComesOncePerCardChange()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.TurnPlayer != Side.Player)
+            {
+                continue;
+            }
+
+            int count = 0;
+            flow.CardsChanged += () => count++;
+
+            flow.DrawCard();
+            Assert.AreEqual(1, count);
+
+            count = 0;
+            flow.Distribute(keep: true);
+            Assert.AreEqual(2, count);
+            return;
+        }
+
+        Assert.Fail("플레이어가 선인 시드를 찾지 못했다");
+    }
+
+    // 카드풀 정보 알림은 판 시작마다 1회 온다. 정산으로 넘어갈 때는 판이 시작되지 않아 오지 않는다
+    [Test]
+    public void DeckChanged_ComesOncePerMatchStart()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            int count = 0;
+            flow.DeckChanged += () => count++;
+
+            flow.StartRound();
+            Assert.AreEqual(1, count);
+
+            PlayTurn(flow);
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(2, count);
+
+            PlayTurn(flow);
+            flow.Next();
+            Assert.AreEqual(2, count, $"seed {seed}");
+        }
+    }
+
+    // 체력 알림은 판정·정산에서 체력이 실제로 바뀌었을 때만 1회 온다
+    [Test]
+    public void HealthChanged_ComesOnceOnlyWhenHealthChanges()
+    {
+        bool sawChange = false;
+        bool sawNoChange = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            int count = 0;
+            flow.HealthChanged += () => count++;
+
+            int playerBefore = flow.GetHealth(Side.Player);
+            int dealerBefore = flow.GetHealth(Side.Dealer);
+            PlayTurn(flow);
+
+            bool changed = flow.GetHealth(Side.Player) != playerBefore || flow.GetHealth(Side.Dealer) != dealerBefore;
+            Assert.AreEqual(changed ? 1 : 0, count, $"seed {seed}");
+            sawChange |= changed;
+            sawNoChange |= !changed;
+        }
+
+        Assert.IsTrue(sawChange && sawNoChange, "시드 범위 안에서 체력이 바뀌는 판과 비기는 판이 모두 나와야 한다");
+    }
 }

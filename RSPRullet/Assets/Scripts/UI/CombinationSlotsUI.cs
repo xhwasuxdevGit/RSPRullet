@@ -5,7 +5,8 @@ using UnityEngine;
 // 한쪽(플레이어 또는 딜러)의 카드 조합 칸: 받은 순서대로 3칸, 칸 사이 이김·짐 화살표, 두 칸이 찼을 때 가능 패턴 안내
 // (UI·UX 화면 흐름 세부 기획서 5-6장 조합 칸, 4-2장 표시 범위).
 // 조합 칸 카드는 항상 공개된 카드라 앞면으로만 보여 주고 눈 표시를 붙이지 않는다.
-// 진행 흐름(GameFlow)에 변경 이벤트가 없어 매 프레임 상태를 읽는다. 바꾸는 값이 고정 문구·그림뿐이라 할당은 없다.
+// 진행 흐름(GameFlow)의 단계·카드 변경 알림을 받을 때만 상태를 읽는다.
+// 이번 판 카드는 판 결과 확인이 끝나야 조합 칸으로 넘어오므로(CombinationSlotRules.GetShownCount) 카드 알림뿐 아니라 단계 알림도 받는다.
 // 정산 때의 패턴 이름 표시는 RSP-71, 카드가 조합 칸으로 옮겨지는 연출은 RSP-63에서 맡는다
 public class CombinationSlotsUI : MonoBehaviour
 {
@@ -36,9 +37,22 @@ public class CombinationSlotsUI : MonoBehaviour
     private void Awake()
     {
         _flow = _runner.Flow;
+        _flow.PhaseChanged += OnPhaseChanged;
+        _flow.CardsChanged += Refresh;
     }
 
-    private void Update()
+    private void OnDestroy()
+    {
+        _flow.PhaseChanged -= OnPhaseChanged;
+        _flow.CardsChanged -= Refresh;
+    }
+
+    private void OnPhaseChanged(GamePhase previous, GamePhase next)
+    {
+        Refresh();
+    }
+
+    private void Refresh()
     {
         IReadOnlyList<Card> slots = _flow.GetCombinationSlots(_side);
         int shownCount = CombinationSlotRules.GetShownCount(slots.Count, _flow.CurrentPhase);

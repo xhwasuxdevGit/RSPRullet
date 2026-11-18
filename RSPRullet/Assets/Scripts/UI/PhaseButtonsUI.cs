@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 하단 HUD의 단계별 버튼과 입력 잠금 (UI·UX 화면 흐름 세부 기획서 6-1장 단계별 버튼, 6-2장 입력 잠금).
-// 진행 흐름(GameFlow)에 변경 이벤트가 없어 매 프레임 켤 버튼을 계산하고, 바뀌었을 때만 화면에 적용한다.
+// 진행 흐름(GameFlow)의 단계 변경 알림을 받을 때만 켤 버튼을 다시 정한다.
+// 버튼을 고르는 턴 플레이어·체력은 단계가 바뀔 때 함께 정해지므로(라운드 종료의 체력은 판정·정산에서 먼저 바뀜) 단계 알림만 받는다.
 public class PhaseButtonsUI : MonoBehaviour
 {
     [SerializeField] private GameFlowRunner _runner;
@@ -25,12 +26,10 @@ public class PhaseButtonsUI : MonoBehaviour
     private GameFlow _flow;
     private (Button button, PhaseButton flag)[] _phaseButtons;
 
-    // 첫 프레임에 반드시 화면에 적용되도록 어떤 조합과도 다른 값으로 시작한다
-    private PhaseButton _appliedButtons = (PhaseButton)(-1);
-
     private void Awake()
     {
         _flow = _runner.Flow;
+        _flow.PhaseChanged += OnPhaseChanged;
         _phaseButtons = new[]
         {
             (_drawCardButton, PhaseButton.DrawCard),
@@ -59,21 +58,16 @@ public class PhaseButtonsUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        _flow.PhaseChanged -= OnPhaseChanged;
         _drawCardButton.onClick.RemoveListener(OnDrawCard);
         _keepButton.onClick.RemoveListener(OnKeep);
         _giveButton.onClick.RemoveListener(OnGive);
         _nextShuffleButton.onClick.RemoveListener(OnNextShuffle);
     }
 
-    private void Update()
+    private void OnPhaseChanged(GamePhase previous, GamePhase next)
     {
         PhaseButton buttons = GetCurrentButtons();
-        if (buttons == _appliedButtons)
-        {
-            return;
-        }
-
-        _appliedButtons = buttons;
         foreach ((Button button, PhaseButton flag) in _phaseButtons)
         {
             button.gameObject.SetActive((buttons & flag) != 0);

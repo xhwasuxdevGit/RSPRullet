@@ -6,7 +6,7 @@ using UnityEngine;
 // 최대 체력은 표시하지 않는다.
 // 위치를 Scene 뷰에서 바로 옮길 수 있도록 체력마다 World Space Canvas(TableLayout/JudgmentRecord/DealerHealthCanvas·PlayerHealthCanvas)에 두고,
 // 판정 기록판과 같은 회전·같은 세로 줄로 정렬해 판정 기록과 함께 움직이게 한다 (RSP-82). 세부 위치는 Scene에서 맞춘다.
-// 진행 흐름(GameFlow)에 체력 변경 이벤트가 없고 변화량 표시 시간도 재야 해서 매 프레임 상태를 읽는다.
+// 체력은 진행 흐름(GameFlow)의 체력 변경 알림을 받을 때만 읽는다. Update는 변화량 표시 시간을 재는 데만 쓴다.
 // 정산은 양쪽 조합 효과를 합산해 한 번에 반영하므로(HealthState.ApplySettlement) 변화량도 한 번만 나온다
 public class HealthUI : MonoBehaviour
 {
@@ -34,19 +34,31 @@ public class HealthUI : MonoBehaviour
         _shownHealth = _flow.GetHealth(_side);
         _healthText.text = _shownHealth.ToString();
         _changeText.gameObject.SetActive(false);
+        _flow.HealthChanged += OnHealthChanged;
+    }
+
+    private void OnDestroy()
+    {
+        _flow.HealthChanged -= OnHealthChanged;
+    }
+
+    // 체력 알림은 양쪽 중 한쪽만 바뀌어도 오므로, 이쪽 체력이 바뀌었는지는 직접 비교한다
+    private void OnHealthChanged()
+    {
+        int health = _flow.GetHealth(_side);
+        int change = health - _shownHealth;
+        if (!HealthChangeRules.IsShown(change))
+        {
+            return;
+        }
+
+        _shownHealth = health;
+        _healthText.text = health.ToString();
+        ShowChange(change);
     }
 
     private void Update()
     {
-        int health = _flow.GetHealth(_side);
-        int change = health - _shownHealth;
-        if (HealthChangeRules.IsShown(change))
-        {
-            _shownHealth = health;
-            _healthText.text = health.ToString();
-            ShowChange(change);
-        }
-
         if (_changeTimeLeft <= 0f)
         {
             return;

@@ -5,7 +5,8 @@ using UnityEngine;
 // 라운드 하나의 진행 흐름. 진행 단계(PhaseMachine), 셔플 테이블(ShuffleTable), 체력(HealthState), 딜러 AI(DealerAI)를 한 흐름으로 묶는다.
 // 플레이어 입력이 필요한 지점(뽑기, 분배, 판 결과 확인, 정산 확인)과 딜러 차례 시작(고민 중 대기)에서만 멈추고, 나머지 단계는 시간 없이 바로 진행한다.
 // 연출 대기 시간은 화면 쪽이 맡는다 (기술 문서 04. 진행 단계 관리 3장 설계 의도).
-// 화면을 참조하지 않으며, 화면은 상태 조회와 Logged 이벤트만 쓴다.
+// 화면을 참조하지 않으며, 화면은 상태 조회와 이 클래스의 이벤트만 쓴다.
+// 화면은 상태 변경 이벤트(PhaseChanged·CardsChanged·DeckChanged·HealthChanged)를 받았을 때만 상태를 다시 읽어 갱신한다 (RSP-85).
 // 라운드마다 새로 만든다. S1 범위라 아이템 단계는 바로 통과하고, 시계 이월은 항상 없음으로 둔다.
 public class GameFlow
 {
@@ -29,6 +30,20 @@ public class GameFlow
     // 판정 기록을 비우는 신호. 카드 셔플(카드풀 공개, UI·UX 화면 흐름 세부 기획서 3-1장 셔플-02)이 시작될 때마다 보낸다.
     // 선 정하기가 비겨 다시 섞을 때도 보낸다
     public event Action JudgmentRecordCleared;
+
+    // 진행 단계가 바뀔 때 (이전 단계, 새 단계)를 알린다. 진행 단계 관리(PhaseMachine)의 알림을 그대로 다시 보낸다.
+    // 단, 카드 셔플 단계로 들어가는 알림은 보내지 않는다. 라운드 첫 카드 셔플은 셔플 테이블을 만들기 전이라 턴 플레이어 같은 상태를 읽을 수 없고,
+    // 카드 셔플은 입력을 기다리지 않고 바로 지나가는 단계라 셔플 테이블이 준비된 뒤의 다음 단계 알림으로 충분하다
+    public event Action<GamePhase, GamePhase> PhaseChanged;
+
+    // 카드의 위치나 공개 상태가 바뀔 때: 시작 카드 분배, 뽑기, 분배, 판 카드 공개, 남은 카드 공개
+    public event Action CardsChanged;
+
+    // 카드풀 정보(카드풀 구성, 판 시작 때 더미 장수)가 바뀔 때. 둘 다 판 시작(BeginMatch)에서만 화면에 맞는 값이 정해지므로 그때 보낸다
+    public event Action DeckChanged;
+
+    // 판정 또는 정산으로 체력이 실제로 바뀌었을 때 한 번 보낸다
+    public event Action HealthChanged;
 
     public GamePhase CurrentPhase => _phaseMachine.CurrentPhase;
     public int MatchIndex => _phaseMachine.MatchIndex;
@@ -61,6 +76,9 @@ public class GameFlow
         RoundNumber = round.RoundNumber;
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
+
+        // 진행 단계 관리는 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
+        _phaseMachine.PhaseChanged += OnPhaseMachineChanged;
     }
 
     public int GetHealth(Side side)
@@ -101,8 +119,9 @@ public class GameFlow
         }
 
         _table.DrawForTurnPlayer();
+        CardsChanged?.Invoke();
         _phaseMachine.CompleteDraw();
-        Log($"뽑은 카드: {DisplayNames.GetShapeName(_table.DrawnCard.Shape)} (플레이어만 앎)");
+        Log($"뽑은 카드:{DisplayNames.GetShapeName(_table.DrawnCard.Shape)} (플레이어만 앎)");
         return true;
     }
 
@@ -115,6 +134,7 @@ public class GameFlow
         }
 
         _table.Distribute(keep);
+        CardsChanged?.Invoke();
         Log(keep ? "플레이어가 카드를 가졌다" : "플레이어가 카드를 딜러에게 줬다");
         _phaseMachine.CompleteDistribute();
         ResolveMatch();
@@ -132,6 +152,7 @@ public class GameFlow
         // 분배하면 DrawnCard가 비므로 먼저 받아 둔다
         Card drawnCard = _table.DrawnCard;
         _dealer.TryDistribute(_table, MatchIndex);
+        CardsChanged?.Invoke();
 
         // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
         IReadOnlyList<Card> dealerSlots = _table.GetCombinationSlots(Side.Dealer);
@@ -179,6 +200,7 @@ public class GameFlow
             _phaseMachine.CompleteCardShuffle();
 
             _table.DealStartCards();
+            CardsChanged?.Invoke();
             Log($"시작 카드: 플레이어 {GetSlotShapeName(Side.Player, 0)}, 딜러 {GetSlotShapeName(Side.Dealer, 0)}");
             _phaseMachine.CompleteStartCardDeal(hasClockCarryOver: false);
 
@@ -202,6 +224,7 @@ public class GameFlow
     {
         // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 기록한다
         MatchStartDeckCount = _table.RemainingDeckCount;
+        DeckChanged?.Invoke();
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
         if (TurnPlayer != Side.Dealer)
         {
@@ -209,6 +232,7 @@ public class GameFlow
         }
 
         _table.DrawForTurnPlayer();
+        CardsChanged?.Invoke();
         _phaseMachine.CompleteDraw();
         Log("딜러가 카드를 뽑았다 (딜러만 앎)");
     }
@@ -221,6 +245,7 @@ public class GameFlow
         _phaseMachine.CompleteItemUse();
 
         _table.RevealMatchCards();
+        CardsChanged?.Invoke();
         _phaseMachine.CompleteReveal();
 
         HandShape playerShape = GetLastSlotShape(Side.Player);
@@ -228,6 +253,7 @@ public class GameFlow
         int playerHealthBefore = _health.GetHealth(Side.Player);
         int dealerHealthBefore = _health.GetHealth(Side.Dealer);
         MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape);
+        NotifyHealthIfChanged(playerHealthBefore, dealerHealthBefore);
         Record(JudgmentRecordRules.GetMatchText(MatchIndex, playerShape, dealerShape,
             _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetShapeName(playerShape)} vs {DisplayNames.GetShapeName(dealerShape)} → {GetResultName(playerResult)} " +
@@ -259,6 +285,7 @@ public class GameFlow
     private void ApplySettlement()
     {
         Card remaining = _table.RevealRemainingCard();
+        CardsChanged?.Invoke();
         Log($"정산: 남은 카드 {DisplayNames.GetShapeName(remaining.Shape)} 공개");
         Record(JudgmentRecordRules.GetRemainingCardText(remaining.Shape));
 
@@ -267,6 +294,7 @@ public class GameFlow
         int playerHealthBefore = _health.GetHealth(Side.Player);
         int dealerHealthBefore = _health.GetHealth(Side.Dealer);
         _isRoundOverAfterSettlement = _health.ApplySettlement(playerCombination, dealerCombination);
+        NotifyHealthIfChanged(playerHealthBefore, dealerHealthBefore);
         Record(JudgmentRecordRules.GetCombinationText(playerCombination, dealerCombination,
             _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
         Log($"정산: 플레이어 {playerCombination}, 딜러 {dealerCombination} " +
@@ -300,6 +328,26 @@ public class GameFlow
     private string GetSlotShapeName(Side side, int index)
     {
         return DisplayNames.GetShapeName(GetSlotShape(side, index));
+    }
+
+    private void OnPhaseMachineChanged(GamePhase previous, GamePhase next)
+    {
+        if (next == GamePhase.CardShuffle)
+        {
+            return;
+        }
+
+        PhaseChanged?.Invoke(previous, next);
+    }
+
+    private void NotifyHealthIfChanged(int playerHealthBefore, int dealerHealthBefore)
+    {
+        if (_health.GetHealth(Side.Player) == playerHealthBefore && _health.GetHealth(Side.Dealer) == dealerHealthBefore)
+        {
+            return;
+        }
+
+        HealthChanged?.Invoke();
     }
 
     private bool Ignore(string input)
