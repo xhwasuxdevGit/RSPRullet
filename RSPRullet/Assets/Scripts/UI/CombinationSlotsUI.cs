@@ -23,6 +23,10 @@ public class CombinationSlotsUI : MonoBehaviour
     // 칸 사이 화살표. 0번은 1·2칸 사이, 1번은 2·3칸 사이.
     // 아래쪽 화살표 그림(Kenney Game Icons down) 하나를 쓰고, 위쪽은 위아래로 뒤집어 보여 준다
     [SerializeField] private SpriteRenderer[] _links;
+
+    // 화살표 뒤에 까는 밝은 받침(_links와 같은 순서). 붉은 나무 테이블 위에서 화살표 색이 묻히지 않게 한다 (RSP-87).
+    // 화살표의 자식이라 함께 켜지고 꺼지므로, 위아래 뒤집기만 화살표에 맞춘다
+    [SerializeField] private SpriteRenderer[] _linkBackings;
     [SerializeField] private TMP_Text _hintText;
 
     // 카드 앞면 그림을 가진 테이블 카드 표시. 그림 연결을 한 곳에만 둔다
@@ -75,7 +79,7 @@ public class CombinationSlotsUI : MonoBehaviour
             _links[i].gameObject.SetActive(isShown);
             if (isShown)
             {
-                ShowLink(_links[i], link);
+                ShowLink(_links[i], _linkBackings[i], link);
             }
         }
 
@@ -87,10 +91,11 @@ public class CombinationSlotsUI : MonoBehaviour
         }
     }
 
-    private void ShowLink(SpriteRenderer link, MatchResult result)
+    private void ShowLink(SpriteRenderer link, SpriteRenderer backing, MatchResult result)
     {
         bool isWin = result == MatchResult.Win;
         link.flipY = isWin;
+        backing.flipY = isWin;
         link.color = isWin ? _winColor : _loseColor;
     }
 
