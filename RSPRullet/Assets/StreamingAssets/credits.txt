@@ -17,6 +17,18 @@ RSPRullet Credits
 - UI Pack - RPG Expansion  : 버튼·패널
 
 ----------------------------------------
+[3D] Quaternius (quaternius.com) - CC0 1.0
+----------------------------------------
+라이선스: Creative Commons Zero (http://creativecommons.org/publicdomain/zero/1.0/)
+크레딧 표기는 필수가 아니지만 출처 관리를 위해 팩 이름을 기록합니다. (무료 Standard 등급만 사용)
+
+- Ultimate Modular Men Pack                 : 딜러 캐릭터(King, 휴머노이드 리그 버전)
+- Universal Animation Library (Standard)    : 딜러 애니메이션(앉은 대기, 피격 등)
+- Universal Animation Library 2 (Standard)  : 딜러 추가 애니메이션(팔짱 대기, 끄덕임 등)
+- Ultimate House Interior Pack              : 딜러 의자, 배경 소품(주방 카운터, 조명, 화분 등)
+- Fantasy Props MegaKit (Standard)          : 테이블(Table_Large, 나무 재질만 사용)
+
+----------------------------------------
 [그래픽] 카드 앞면 손 모양 (바위·보·가위)
 ----------------------------------------
 OpenAI 이미지 생성 결과를 편집해 사용 (OpenAI 이용약관, 상업 이용 가능 - 사용자 확인 2026-11-16)
