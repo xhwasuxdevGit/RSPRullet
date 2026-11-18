@@ -18,4 +18,10 @@ public static class DisplayNames
     {
         return side == Side.Player ? "플레이어" : "딜러";
     }
+
+    // 한 카드 셔플은 두 판이다 (matchIndex 0, 1). 판정 기록과 상단 정보 UI가 함께 쓴다
+    public static string GetMatchName(int matchIndex)
+    {
+        return matchIndex == 0 ? "첫 번째 판" : "두 번째 판";
+    }
 }
