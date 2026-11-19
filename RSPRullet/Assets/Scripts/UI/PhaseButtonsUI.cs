@@ -49,9 +49,9 @@ public class PhaseButtonsUI : MonoBehaviour
         _nextShuffleButton.onClick.AddListener(OnNextShuffle);
         _itemDoneButton.onClick.AddListener(OnFinishItemPhase);
         _noItemButton.onClick.AddListener(OnFinishItemPhase);
+        _nextRoundButton.onClick.AddListener(OnNextRound);
 
-        // 라운드 진행 버튼은 S3 이슈에서 동작을 연결한다. 그 전까지는 보이기만 하고 눌리지 않는다
-        ButtonLock.SetLocked(_nextRoundButton, true);
+        // 응급약 복용과 다시하기는 동작을 연결하기 전까지 보이기만 하고 눌리지 않는다
         ButtonLock.SetLocked(_takeMedicineButton, true);
         ButtonLock.SetLocked(_restartButton, true);
     }
@@ -65,6 +65,7 @@ public class PhaseButtonsUI : MonoBehaviour
         _nextShuffleButton.onClick.RemoveListener(OnNextShuffle);
         _itemDoneButton.onClick.RemoveListener(OnFinishItemPhase);
         _noItemButton.onClick.RemoveListener(OnFinishItemPhase);
+        _nextRoundButton.onClick.RemoveListener(OnNextRound);
     }
 
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
@@ -80,12 +81,11 @@ public class PhaseButtonsUI : MonoBehaviour
         ButtonLock.SetLocked(_settingsButton, isLocked);
     }
 
-    // 라운드 번호(S3)가 생기기 전까지는 마지막 라운드 아님으로 둔다
     private PhaseButton GetCurrentButtons()
     {
         bool playerWonRound = _flow.GetHealth(Side.Player) > GameRules.MinHealth;
         return PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.TurnPlayer,
-            hasUsableItem: _flow.HasUsableItem(Side.Player), playerWonRound: playerWonRound, isFinalRound: false);
+            hasUsableItem: _flow.HasUsableItem(Side.Player), playerWonRound: playerWonRound, isFinalRound: _runner.IsFinalRound);
     }
 
     private void OnDrawCard()
@@ -108,7 +108,11 @@ public class PhaseButtonsUI : MonoBehaviour
         _flow.Next();
     }
 
-    // [아이템 사용 완료]와 [아이템 없음]은 둘 다 지금 아이템 단계를 끝낸다
+    private void OnNextRound()
+    {
+        _runner.StartNextRound();
+    }
+    
     private void OnFinishItemPhase()
     {
         _flow.FinishItemPhase();
