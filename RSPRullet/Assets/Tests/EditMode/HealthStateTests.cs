@@ -148,4 +148,63 @@ public class HealthStateTests
 
         Assert.AreEqual(10, health.GetHealth(Side.Player));
     }
+
+    [Test]
+    public void ApplyMatch_HealthChanged_NotifiesOnceAndRecordsLastChange()
+    {
+        var health = new HealthState(_rules, 3);
+        int changedCount = 0;
+        health.Changed += () => changedCount++;
+
+        health.ApplyMatch(HandShape.Rock, HandShape.Scissors);
+
+        Assert.AreEqual(1, changedCount);
+        Assert.AreEqual(0, health.GetLastChange(Side.Player));
+        Assert.AreEqual(-1, health.GetLastChange(Side.Dealer));
+    }
+
+    // 무승부는 체력이 바뀌지 않으므로 알리지 않고, 앞 판의 변화량도 남기지 않는다
+    [Test]
+    public void ApplyMatch_DrawAfterWin_NoNotifyAndLastChangeReset()
+    {
+        var health = new HealthState(_rules, 3);
+        health.ApplyMatch(HandShape.Rock, HandShape.Scissors);
+        int changedCount = 0;
+        health.Changed += () => changedCount++;
+
+        health.ApplyMatch(HandShape.Paper, HandShape.Paper);
+
+        Assert.AreEqual(0, changedCount);
+        Assert.AreEqual(0, health.GetLastChange(Side.Dealer));
+    }
+
+    // 예시 ②: 플레이어만 1 → 0. 알림 한 번, 변화량 플레이어 -1 / 딜러 0
+    [Test]
+    public void ApplySettlement_Example2_NotifiesOnceWithSummedChange()
+    {
+        var health = new HealthState(_rules, 1);
+        int changedCount = 0;
+        health.Changed += () => changedCount++;
+
+        health.ApplySettlement(CombinationType.HealFullSet, CombinationType.Triple);
+
+        Assert.AreEqual(1, changedCount);
+        Assert.AreEqual(-1, health.GetLastChange(Side.Player));
+        Assert.AreEqual(0, health.GetLastChange(Side.Dealer));
+    }
+
+    // 예시 ③: 양쪽 0 → 둘 다 1로 되돌리면 최종 체력이 그대로라 알리지 않는다 (코어 규칙 상세 기획서 6장 예외 E4)
+    [Test]
+    public void ApplySettlement_Example3_BothZeroReset_NoNotifyAndZeroChange()
+    {
+        var health = new HealthState(_rules, 1);
+        int changedCount = 0;
+        health.Changed += () => changedCount++;
+
+        health.ApplySettlement(CombinationType.AttackFullSet, CombinationType.AttackFullSet);
+
+        Assert.AreEqual(0, changedCount);
+        Assert.AreEqual(0, health.GetLastChange(Side.Player));
+        Assert.AreEqual(0, health.GetLastChange(Side.Dealer));
+    }
 }

@@ -484,7 +484,7 @@ public class GameFlowTests
     }
 
     // 상태 변경 이벤트 (RSP-85). 단계 알림은 진행 단계가 바뀔 때마다 1회 오고, 카드 셔플 진입 알림은 보내지 않는다.
-    // 라운드 첫 카드 셔플 진입은 셔플 테이블이 없을 때라, 알림을 받은 화면이 턴 플레이어를 읽으면 오류가 난다
+    // 라운드 첫 카드 셔플 진입은 테이블 상태가 없을 때라, 알림을 받은 화면이 턴 플레이어를 읽으면 오류가 난다
     [Test]
     public void PhaseChanged_ComesPerPhaseChange_ExceptEnteringCardShuffle()
     {

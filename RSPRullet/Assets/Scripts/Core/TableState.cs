@@ -1,12 +1,26 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 // 카드 셔플 한 번 동안의 테이블 상태: 카드 더미, 양쪽 카드 조합 칸, 턴 플레이어.
 // 시작 카드와 선 정하기(7-2장 F4), 뽑기·분배·턴 교대(F5), 카드별 정보 공개 상태(F9)를 담당한다.
 // 선 정하기에서 비기면 카드풀부터 다시 만들어야 하므로, 카드 셔플마다 새로 만든다.
-public class ShuffleTable
+public class TableState
 {
+    // 한 판에 더미에서 나가는 카드: 뽑은 카드 1장 + 남은 자리에 들어가는 더미의 다음 카드 1장 (Distribute)
+    private const int CardsPerMatch = 2;
+
     private readonly CardDeck _deck;
+
+    // 카드 위치나 아는 사람 정보가 바뀌면 알린다: 시작 카드 배분, 뽑기, 분배, 판 카드 공개, 남은 카드 공개
+    public event Action Changed;
+
+    // 카드풀 정보의 "n장 → n장". 판 시작(BeginMatch) 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값이 그대로 남는다
+    public int MatchStartDeckCount { get; private set; }
+    public int MatchEndDeckCount => MatchStartDeckCount - CardsPerMatch;
+
+    // 마지막 분배에서 턴 플레이어가 뽑은 카드를 가졌는지. 가졌는지 줬는지는 항상 공개되는 정보다
+    public bool LastDistributionKept { get; private set; }
 
     // 카드 조합 칸 (기획서 1장 용어). 받은 순서대로 시작 카드 → 첫 번째 판 → 두 번째 판 카드가 쌓인다
     private readonly List<Card> _playerSlots = new List<Card>();
@@ -23,7 +37,7 @@ public class ShuffleTable
     // 더미는 카드를 뽑으면 줄어들므로, 7장이 모두 더미에 있는 생성 시점에 한 번 기록해 둔다
     private readonly Dictionary<HandShape, int> _poolCardCounts = new Dictionary<HandShape, int>();
 
-    public ShuffleTable(CardDeck deck)
+    public TableState(CardDeck deck)
     {
         _deck = deck;
         foreach (HandShape shape in System.Enum.GetValues(typeof(HandShape)))
@@ -49,11 +63,38 @@ public class ShuffleTable
         return side == Side.Player ? _playerSlots : _dealerSlots;
     }
 
+    // 시작 카드: 조합 칸의 첫 카드. 선 정하기에 쓴다
+    public Card GetStartCard(Side side)
+    {
+        return GetCombinationSlots(side)[0];
+    }
+
+    // 이번 판 카드: 조합 칸의 마지막 카드. 분배 뒤부터 판 결과까지 이번 판에 들어간 카드다
+    public Card GetMatchCard(Side side)
+    {
+        IReadOnlyList<Card> slots = GetCombinationSlots(side);
+        return slots[slots.Count - 1];
+    }
+
+    // 조합 칸 3장으로 정산할 카드 조합을 판정한다. 두 번째 판 분배 뒤(정산)에만 부른다
+    public CombinationType JudgeCombination(Side side)
+    {
+        IReadOnlyList<Card> slots = GetCombinationSlots(side);
+        return CombinationRules.Judge(slots[0].Shape, slots[1].Shape, slots[2].Shape);
+    }
+
     // 더미 맨 위부터 플레이어 → 딜러 순서로 1장씩, 각자 조합 칸 첫 칸에 앞면으로 둔다
     public void DealStartCards()
     {
         PlaceFaceUp(Side.Player, _deck.Draw());
         PlaceFaceUp(Side.Dealer, _deck.Draw());
+        Changed?.Invoke();
+    }
+
+    // 판 시작. 판 카드 수 표시에 쓸 더미 장수를 뽑기 전에 기록한다
+    public void BeginMatch()
+    {
+        MatchStartDeckCount = RemainingDeckCount;
     }
 
     // 시작 카드로 가위바위보를 해 이긴 쪽을 첫 번째 판 턴 플레이어로 정한다. 대미지는 없다.
@@ -63,12 +104,12 @@ public class ShuffleTable
         MatchResult playerResult = HandShapeRules.Compare(_playerSlots[0].Shape, _dealerSlots[0].Shape);
         if (playerResult == MatchResult.Draw)
         {
-            Debug.Log("[ShuffleTable] 선 정하기 무승부: 카드 셔플부터 다시");
+            Debug.Log("[TableState] 선 정하기 무승부: 카드 셔플부터 다시");
             return false;
         }
 
         TurnPlayer = playerResult == MatchResult.Win ? Side.Player : Side.Dealer;
-        Debug.Log($"[ShuffleTable] 선 정하기: 첫 번째 판 턴 플레이어 {TurnPlayer}");
+        Debug.Log($"[TableState] 선 정하기: 첫 번째 판 턴 플레이어 {TurnPlayer}");
         return true;
     }
 
@@ -83,6 +124,7 @@ public class ShuffleTable
     {
         DrawnCard = _deck.Draw();
         MarkKnownBy(DrawnCard, TurnPlayer);
+        Changed?.Invoke();
         return DrawnCard;
     }
 
@@ -94,6 +136,8 @@ public class ShuffleTable
         AddToCombination(receiver, DrawnCard);
         AddToCombination(Opponent(receiver), _deck.Draw());
         DrawnCard = null;
+        LastDistributionKept = keep;
+        Changed?.Invoke();
     }
 
     // 판이 끝나면 다음 판 턴 플레이어를 정한다. 시계를 쓰면 유지하고, 아니면 상대에게 넘어간다
@@ -110,8 +154,9 @@ public class ShuffleTable
     // 5-5 카드 공개: 이번 판에 양쪽 자리에 들어간 카드(각 조합 칸의 마지막 카드)를 양쪽 모두 알게 된다
     public void RevealMatchCards()
     {
-        RevealToBoth(_playerSlots[_playerSlots.Count - 1]);
-        RevealToBoth(_dealerSlots[_dealerSlots.Count - 1]);
+        RevealToBoth(GetMatchCard(Side.Player));
+        RevealToBoth(GetMatchCard(Side.Dealer));
+        Changed?.Invoke();
     }
 
     // 정산 1단계: 더미에 남은 1장을 꺼내 양쪽 모두에게 공개한다.
@@ -120,6 +165,7 @@ public class ShuffleTable
     {
         Card remaining = _deck.Draw();
         RevealToBoth(remaining);
+        Changed?.Invoke();
         return remaining;
     }
 
