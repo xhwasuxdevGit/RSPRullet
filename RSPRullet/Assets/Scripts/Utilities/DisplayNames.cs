@@ -14,6 +14,19 @@ public static class DisplayNames
         }
     }
 
+    public static string GetItemName(ItemType item)
+    {
+        switch (item)
+        {
+            case ItemType.Coffee:
+                return "커피";
+            case ItemType.Magnifier:
+                return "돋보기";
+            default:
+                return "시계";
+        }
+    }
+
     public static string GetSideName(Side side)
     {
         return side == Side.Player ? "플레이어" : "딜러";

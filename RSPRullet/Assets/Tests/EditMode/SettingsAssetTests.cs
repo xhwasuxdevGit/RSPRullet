@@ -35,6 +35,18 @@ public class SettingsAssetTests
         Assert.AreEqual(3, settings.TripleDamage);
     }
 
+    // 아이템 세부 기획서 7-1-1장 지급 가중치 기본값 (커피 40 / 돋보기 40 / 시계 20)
+    [Test]
+    public void ItemSettings_MatchPlannedValues()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<ItemSettings>($"{Folder}/ItemSettings.asset");
+
+        Assert.IsNotNull(settings);
+        Assert.AreEqual(40, settings.GetWeight(ItemType.Coffee));
+        Assert.AreEqual(40, settings.GetWeight(ItemType.Magnifier));
+        Assert.AreEqual(20, settings.GetWeight(ItemType.Clock));
+    }
+
     // UI·UX 화면 흐름 세부 기획서 3-2장 판-07 승패 판정 표시 시작값, 연출·아트·사운드 세부 기획서 7-3장 딜러 고민 중 범위
     [Test]
     public void DisplayTimeSettings_MatchPlannedValues()

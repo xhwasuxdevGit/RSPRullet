@@ -43,19 +43,24 @@ disable-model-invocation: false
 4. DEEP이거나 `behavior-guidelines.md` 5장의 사전 승인 조건에 해당하면 명시적 승인을 기다린다. **Jira 쓰기는 모드와 무관하게 승인 전 하지 않는다.**
 
 ## 4. Jira 업데이트 및 검수 (Phase 3)
-1. 승인받은 항목만 Jira에 반영한다 (설명 보완은 `issue-template.md`, 상태 전환은 가능한 전환을 조회한 뒤 수행).
+1. 승인받은 항목만 Jira에 반영한다 (설명 보완은 `issue-template.md`). 상태 전환은 전환할 상태를 제안하고 사용자가 직접 한다.
 2. 이슈를 다시 조회해 실제 반영 내용을 보고하고 사용자 검수를 받는다. 수정 요청이 있으면 반영 후 다시 검수받는다.
 
 ## 5. 브랜치 준비
-1. 안전한 경우에만 **최신 `main` 기준**으로 브랜치를 생성한다. 예:
+브랜치 생성은 사용자가 직접 한다. Claude는 생성해도 안전한지 먼저 판단하고 결과와 명령을 제시한다.
+1. 안전 판단: 다음을 조회해 각 항목의 결과를 보고한다. 하나라도 걸리면 "생성 보류"와 사유·처리 방법을 제시하고, 사용자가 처리한 뒤 다시 판단한다.
+   - 미커밋 변경: `git status`에 변경이 없다. 있으면 새 브랜치로 따라가므로 처리 방향(커밋·보관)을 사용자에게 묻는다.
+   - 현재 브랜치: 이전 이슈 브랜치에 Push하지 않은 커밋이 없다.
+   - 최신 `main`: `git fetch origin` 후 로컬 `main`이 `origin/main`과 같거나 fast-forward로 따라잡을 수 있다.
+   - 브랜치명: 같은 이름의 브랜치가 로컬·원격에 없다 (`git-workflow` 스킬 3장).
+2. 안전하면 브랜치명과 명령을 제시한다. 예:
    ```bash
-   git fetch origin
    git switch main
    git pull --ff-only origin main
    git switch -c RSP-xx-rhythm-system-design
    ```
    명령은 예시다. 현재 Git 상태에 맞게 조정한다.
-2. `main`과 차이 및 충돌 위험을 보고한다. 승인 없이 merge/rebase하지 않는다.
+3. 사용자가 완료를 알리면 현재 브랜치를 확인하고, `main`과 차이 및 충돌 위험을 보고한다. 승인 없이 merge/rebase하지 않는다.
 
 ## 6. 업무 수행으로 전환 (Phase 4~)
 - 확정된 범위에서만 구현하고 `behavior-guidelines.md` 7장 기준으로 검증한다. 요청이 계획 수립뿐이면 구현하지 않는다.
