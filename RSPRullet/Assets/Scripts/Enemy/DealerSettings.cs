@@ -6,9 +6,11 @@ using UnityEngine;
 public class DealerSettings : ScriptableObject
 {
     // 손해가 분명한 상황(2번째 판, 선택 간 HP 차이 2 이상)에서 규칙상 결론을 따를 확률
+    // 딜러 AI의 강함을 결정
     [SerializeField, Range(0.5f, 1f)] private float _strengthCorrectionRate = 1f;
 
     // 두 선택 모두 근거가 있는 상황에서 규칙상 결론을 따를 확률
+    // 딜러의 행동의 예측을 어렵게 만듬
     [SerializeField, Range(0.5f, 1f)] private float _ruleComplianceRate = 1f;
 
     // 시계 조건이 맞을 때 사용할 확률
