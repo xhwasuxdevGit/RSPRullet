@@ -807,4 +807,103 @@ public class GameFlowTests
             CollectionAssert.AreEqual(first.GetItems(Side.Dealer), second.GetItems(Side.Dealer), $"seed {seed}");
         }
     }
+
+
+    // ── 커피 (아이템 세부 기획서 2-1장 커피, 5장 I3·I5) ──
+
+    // 카드 셔플 지급이 모두 커피가 되도록 다른 종류의 지급 가중치를 0으로 둔다. 라운드 시작 돋보기는 그대로 받는다
+    private void SetCoffeeOnlySupply()
+    {
+        var itemSettings = new SerializedObject(_itemSettings);
+        itemSettings.FindProperty("_magnifierWeight").intValue = 0;
+        itemSettings.FindProperty("_clockWeight").intValue = 0;
+        itemSettings.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 플레이어가 커피를 쓴 판: 이기면 딜러 체력이 기본 데미지 × 커피 배수만큼 줄고, 지면 기본 데미지만, 비기면 변화 없다.
+    // 커피는 보유 칸에서 빠지고, 다음 판에는 사용 기록이 남지 않는다
+    [Test]
+    public void PlayerUsedCoffee_DoublesDamageOnlyWhenPlayerWins()
+    {
+        SetRound3ItemValues();
+        SetCoffeeOnlySupply();
+        int coffeeDamage = _rules.MatchDamage * _rules.CoffeeMultiplier;
+        bool sawWin = false;
+        bool sawLoseOrDraw = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.TurnPlayer != Side.Player)
+            {
+                continue;
+            }
+
+            flow.DrawCard();
+            flow.Distribute(keep: true);
+            int coffeeCountBefore = CountItem(flow.GetItems(Side.Player), ItemType.Coffee);
+            int playerBefore = flow.GetHealth(Side.Player);
+            int dealerBefore = flow.GetHealth(Side.Dealer);
+
+            Assert.IsTrue(flow.UseItem(ItemType.Coffee), $"seed {seed}");
+            Assert.AreEqual(coffeeCountBefore - 1, CountItem(flow.GetItems(Side.Player), ItemType.Coffee), $"seed {seed}");
+            flow.FinishItemPhase();
+            Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase, $"seed {seed}");
+
+            // 판 결과를 보여 주는 동안 각자 조합 칸의 마지막 카드가 이번 판 카드다
+            HandShape playerShape = GetLastSlotShape(flow, Side.Player);
+            HandShape dealerShape = GetLastSlotShape(flow, Side.Dealer);
+            MatchResult playerResult = HandShapeRules.Compare(playerShape, dealerShape);
+            int playerLoss = playerBefore - flow.GetHealth(Side.Player);
+            int dealerLoss = dealerBefore - flow.GetHealth(Side.Dealer);
+
+            switch (playerResult)
+            {
+                case MatchResult.Win:
+                    sawWin = true;
+                    Assert.AreEqual(0, playerLoss, $"seed {seed}");
+                    Assert.AreEqual(Mathf.Min(coffeeDamage, dealerBefore), dealerLoss, $"seed {seed}");
+                    break;
+                case MatchResult.Lose:
+                    sawLoseOrDraw = true;
+                    Assert.AreEqual(Mathf.Min(_rules.MatchDamage, playerBefore), playerLoss, $"seed {seed}");
+                    Assert.AreEqual(0, dealerLoss, $"seed {seed}");
+                    break;
+                default:
+                    sawLoseOrDraw = true;
+                    Assert.AreEqual(0, playerLoss, $"seed {seed}");
+                    Assert.AreEqual(0, dealerLoss, $"seed {seed}");
+                    break;
+            }
+
+            // 판이 바뀌면 이번 판 사용 기록이 비워져 커피 효과가 다음 판으로 이어지지 않는다
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.RoundEnd && flow.CurrentPhase != GamePhase.Settlement)
+            {
+                Assert.AreEqual(0, flow.ItemUses.Count, $"seed {seed}");
+            }
+        }
+
+        Assert.IsTrue(sawWin && sawLoseOrDraw, "시드 범위 안에서 플레이어가 이기는 판과 지거나 비기는 판이 모두 나와야 한다");
+    }
+
+    private static int CountItem(IReadOnlyList<ItemType> items, ItemType item)
+    {
+        int count = 0;
+        foreach (ItemType heldItem in items)
+        {
+            if (heldItem == item)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static HandShape GetLastSlotShape(GameFlow flow, Side side)
+    {
+        IReadOnlyList<Card> slots = flow.GetCombinationSlots(side);
+        return slots[slots.Count - 1].Shape;
+    }
 }

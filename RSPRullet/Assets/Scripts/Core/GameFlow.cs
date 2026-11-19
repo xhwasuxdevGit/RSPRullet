@@ -156,7 +156,7 @@ public class GameFlow
     }
 
     // 플레이어의 아이템 단계에서 아이템 하나를 쓴다. 쓸 수 없는 아이템이면 무시한다.
-    // 효과는 아직 없고, 보유 칸에서 빼고 사용 기록에 남긴다
+    // 보유 칸에서 빼고 사용 기록에 남긴다. 커피는 판정 때 이 사용 기록을 읽어 효과를 낸다
     public bool UseItem(ItemType item)
     {
         if (!IsPlayerItemPhase() || !_items.TryUseItem(Side.Player, item, TurnPlayer))
@@ -348,7 +348,10 @@ public class GameFlow
 
         HandShape playerShape = _table.GetMatchCard(Side.Player).Shape;
         HandShape dealerShape = _table.GetMatchCard(Side.Dealer).Shape;
-        MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape);
+        // 커피는 카드가 아니라 쓴 사람에게 붙으므로, 카드가 교환되어도 쓴 사람의 사용 기록으로 판단한다 (아이템 세부 기획서 2-1장 커피)
+        bool playerUsedCoffee = _items.HasUsedItem(Side.Player, ItemType.Coffee);
+        bool dealerUsedCoffee = _items.HasUsedItem(Side.Dealer, ItemType.Coffee);
+        MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape, playerUsedCoffee, dealerUsedCoffee);
         Record(JudgmentRecordRules.GetMatchText(MatchIndex, playerShape, dealerShape,
             _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer)));
         Log(FlowLogText.GetMatchResult(MatchIndex, playerShape, dealerShape, playerResult,
