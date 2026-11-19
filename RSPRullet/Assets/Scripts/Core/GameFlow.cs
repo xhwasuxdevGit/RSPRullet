@@ -12,6 +12,10 @@ public class GameFlow
     private readonly HealthState _health;
     private readonly DealerAI _dealer;
     private readonly ItemState _items;
+    private readonly ItemSettings _itemSettings;
+
+    // 라운드 시작 돋보기 수와 카드 셔플당 지급 수를 읽는다
+    private readonly RoundSettings _round;
 
     // 카드 셔플마다 새로 만든다
     private ShuffleTable _table;
@@ -60,10 +64,12 @@ public class GameFlow
     // 이번 판에 양쪽이 쓴 아이템과 돋보기 뒤 교환 여부
     public IReadOnlyList<(Side User, ItemType Item, bool Exchanged)> ItemUses => _items.ItemUses;
 
-    // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택이 같게 나와 테스트에서 진행을 재현할 수 있다
-    public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
+    // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택·아이템 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
+    public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, ItemSettings itemSettings, System.Random random)
     {
         _random = random;
+        _round = round;
+        _itemSettings = itemSettings;
         RoundNumber = round.RoundNumber;
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
@@ -111,6 +117,10 @@ public class GameFlow
         }
 
         Log($"라운드 시작: 양쪽 체력 {_health.GetHealth(Side.Player)}");
+
+        // 라운드 시작 지급 (코어 규칙 상세 기획서 2-1장 ① 라운드 시작, 아이템 세부 기획서 4-2장 지급 시점)
+        ItemSupply.SupplyStartItems(_items, _round.StartMagnifierCount);
+        LogHeldItems("라운드 시작 지급");
         StartShuffle();
         return true;
     }
@@ -224,6 +234,11 @@ public class GameFlow
     private void StartShuffle()
     {
         ShuffleCount++;
+
+        // 카드 셔플 지급은 재섞기 반복 밖에서 한 번만 한다. 선 정하기가 비겨 다시 섞을 때는 지급하지 않는다 (코어 규칙 상세 기획서 6장 예외 E1)
+        ItemSupply.SupplyShuffleItems(_items, _round.ItemsPerShuffle, _itemSettings, _random);
+        LogHeldItems("카드 셔플 지급");
+
         bool isDecided;
         do
         {
@@ -415,6 +430,28 @@ public class GameFlow
         }
 
         PhaseChanged?.Invoke(previous, next);
+    }
+
+    // 지급 뒤 양쪽 보유 아이템을 로그로 남긴다. 아이템이 없는 라운드(1라운드)는 남기지 않는다
+    private void LogHeldItems(string reason)
+    {
+        if (_items.Capacity == 0)
+        {
+            return;
+        }
+
+        Log($"{reason}: 플레이어 [{GetItemNames(Side.Player)}], 딜러 [{GetItemNames(Side.Dealer)}]");
+    }
+
+    private string GetItemNames(Side side)
+    {
+        var names = new List<string>();
+        foreach (ItemType item in _items.GetItems(side))
+        {
+            names.Add(DisplayNames.GetItemName(item));
+        }
+
+        return string.Join(", ", names);
     }
 
     private void OnItemsChanged()

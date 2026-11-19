@@ -9,6 +9,7 @@ public class GameFlowRunner : MonoBehaviour
     [SerializeField] private RuleSettings _ruleSettings;
     [SerializeField] private RoundSettings _roundSettings;
     [SerializeField] private DealerSettings _dealerSettings;
+    [SerializeField] private ItemSettings _itemSettings;
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
 
     // 판-07 승패 판정 표시를 기다리는 중인지와 남은 시간
@@ -24,7 +25,7 @@ public class GameFlowRunner : MonoBehaviour
     // 모든 Awake가 끝난 뒤 Start가 불리므로, 화면은 Awake에서 Flow.Logged를 구독하면 라운드 시작 로그부터 받는다
     private void Awake()
     {
-        Flow = new GameFlow(_ruleSettings, _roundSettings, _dealerSettings, new System.Random());
+        Flow = new GameFlow(_ruleSettings, _roundSettings, _dealerSettings, _itemSettings, new System.Random());
     }
 
     private void Start()
