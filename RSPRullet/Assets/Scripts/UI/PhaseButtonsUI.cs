@@ -47,10 +47,10 @@ public class PhaseButtonsUI : MonoBehaviour
         _keepButton.onClick.AddListener(OnKeep);
         _giveButton.onClick.AddListener(OnGive);
         _nextShuffleButton.onClick.AddListener(OnNextShuffle);
+        _itemDoneButton.onClick.AddListener(OnFinishItemPhase);
+        _noItemButton.onClick.AddListener(OnFinishItemPhase);
 
-        // 아이템 단계와 라운드 진행은 S3 이슈에서 동작을 연결한다. 그 전까지는 보이기만 하고 눌리지 않는다
-        ButtonLock.SetLocked(_itemDoneButton, true);
-        ButtonLock.SetLocked(_noItemButton, true);
+        // 라운드 진행 버튼은 S3 이슈에서 동작을 연결한다. 그 전까지는 보이기만 하고 눌리지 않는다
         ButtonLock.SetLocked(_nextRoundButton, true);
         ButtonLock.SetLocked(_takeMedicineButton, true);
         ButtonLock.SetLocked(_restartButton, true);
@@ -63,6 +63,8 @@ public class PhaseButtonsUI : MonoBehaviour
         _keepButton.onClick.RemoveListener(OnKeep);
         _giveButton.onClick.RemoveListener(OnGive);
         _nextShuffleButton.onClick.RemoveListener(OnNextShuffle);
+        _itemDoneButton.onClick.RemoveListener(OnFinishItemPhase);
+        _noItemButton.onClick.RemoveListener(OnFinishItemPhase);
     }
 
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
@@ -78,12 +80,12 @@ public class PhaseButtonsUI : MonoBehaviour
         ButtonLock.SetLocked(_settingsButton, isLocked);
     }
 
-    // 아이템 보유(S3)와 라운드 번호(S3)가 생기기 전까지는 아이템 없음, 마지막 라운드 아님으로 둔다
+    // 라운드 번호(S3)가 생기기 전까지는 마지막 라운드 아님으로 둔다
     private PhaseButton GetCurrentButtons()
     {
         bool playerWonRound = _flow.GetHealth(Side.Player) > GameRules.MinHealth;
         return PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.TurnPlayer,
-            hasUsableItem: false, playerWonRound: playerWonRound, isFinalRound: false);
+            hasUsableItem: _flow.HasUsableItem(Side.Player), playerWonRound: playerWonRound, isFinalRound: false);
     }
 
     private void OnDrawCard()
@@ -104,5 +106,11 @@ public class PhaseButtonsUI : MonoBehaviour
     private void OnNextShuffle()
     {
         _flow.Next();
+    }
+
+    // [아이템 사용 완료]와 [아이템 없음]은 둘 다 지금 아이템 단계를 끝낸다
+    private void OnFinishItemPhase()
+    {
+        _flow.FinishItemPhase();
     }
 }
