@@ -143,7 +143,7 @@ public class DealerAI
     }
 
     // 예상 HP 변화 = 판정 시 HP 변화 + 정산 시 HP 변화 (딜러 AI 세부 기획서 3-4장 2번째 판 표).
-    // 커피 대미지 배수는 아이템 단계가 아직 없어 반영하지 않는다
+    // 커피 대미지 배수는 아이템 연결이 이루어지면 반영한다.
     private int SumExpectedChange(DealerKnownInfo knownInfo, bool keep)
     {
         return SumJudgmentChange(knownInfo, keep) + SumSettlementChange(knownInfo, keep);
