@@ -585,4 +585,102 @@ public class GameFlowTests
 
         Assert.IsTrue(sawChange && sawNoChange, "시드 범위 안에서 체력이 바뀌는 판과 비기는 판이 모두 나와야 한다");
     }
+
+
+    // ── 아이템 단계 ──
+    // 아이템 지급 전이라 보유 칸이 비어 있다. 아이템을 쓰는 경우는 ItemStateTests에서 확인한다
+
+    // 보유 한도가 있는 라운드로 만든다
+    private void SetItemCapacity(int capacity)
+    {
+        var round = new SerializedObject(_round);
+        round.FindProperty("_itemCapacity").intValue = capacity;
+        round.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 첫 번째 판의 턴 플레이어가 turnPlayer인 진행을 시드 범위에서 찾는다
+    private GameFlow StartFlowWithTurnPlayer(Side turnPlayer)
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.TurnPlayer == turnPlayer)
+            {
+                return flow;
+            }
+        }
+
+        Assert.Fail($"{turnPlayer}가 선인 시드를 찾지 못했다");
+        return null;
+    }
+
+    // 보유 한도가 0인 라운드는 아이템 단계를 건너뛰고 바로 판 결과로 간다
+    [Test]
+    public void ZeroItemCapacity_SkipsItemPhase()
+    {
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+
+        flow.DrawCard();
+        flow.Distribute(keep: true);
+
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 플레이어가 턴 플레이어면 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 판 결과로 간다
+    [Test]
+    public void PlayerTurn_WaitsForPlayerItemPhase_ThenDealerPhasePasses()
+    {
+        SetItemCapacity(4);
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+
+        flow.DrawCard();
+        flow.Distribute(keep: true);
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+
+        Assert.IsTrue(flow.FinishItemPhase());
+
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 딜러가 턴 플레이어면 딜러 단계가 먼저 지나고, 상대인 플레이어 단계에서 입력을 기다린다
+    [Test]
+    public void DealerTurn_DealerPhasePassesFirst_ThenWaitsForPlayer()
+    {
+        SetItemCapacity(4);
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Dealer);
+
+        flow.PlayDealerTurn();
+        Assert.AreEqual(GamePhase.ItemOpponent, flow.CurrentPhase);
+
+        Assert.IsTrue(flow.FinishItemPhase());
+
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 가지고 있지 않은 아이템은 쓸 수 없고, 아이템 단계에 그대로 머문다
+    [Test]
+    public void UseItem_NotHeld_IsIgnored()
+    {
+        SetItemCapacity(4);
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+        flow.DrawCard();
+        flow.Distribute(keep: true);
+
+        Assert.IsFalse(flow.HasUsableItem(Side.Player));
+        Assert.IsFalse(flow.UseItem(ItemType.Coffee));
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+        Assert.AreEqual(0, flow.ItemUses.Count);
+    }
+
+    // 플레이어 아이템 단계가 아니면 아이템 입력을 무시한다
+    [Test]
+    public void ItemInput_OutsidePlayerItemPhase_IsIgnored()
+    {
+        SetItemCapacity(4);
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+
+        Assert.IsFalse(flow.UseItem(ItemType.Coffee));
+        Assert.IsFalse(flow.FinishItemPhase());
+        Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
+    }
 }

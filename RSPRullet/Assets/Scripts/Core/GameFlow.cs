@@ -2,48 +2,38 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 라운드 하나의 진행 흐름. 진행 단계(PhaseMachine), 셔플 테이블(ShuffleTable), 체력(HealthState), 딜러 AI(DealerAI)를 한 흐름으로 묶는다.
-// 플레이어 입력이 필요한 지점(뽑기, 분배, 판 결과 확인, 정산 확인)과 딜러 차례 시작(고민 중 대기)에서만 멈추고, 나머지 단계는 시간 없이 바로 진행한다.
-// 연출 대기 시간은 화면 쪽이 맡는다 (기술 문서 04. 진행 단계 관리 3장 설계 의도).
-// 화면을 참조하지 않으며, 화면은 상태 조회와 이 클래스의 이벤트만 쓴다.
-// 화면은 상태 변경 이벤트(PhaseChanged·CardsChanged·DeckChanged·HealthChanged)를 받았을 때만 상태를 다시 읽어 갱신한다 (RSP-85).
-// 라운드마다 새로 만든다. S1 범위라 아이템 단계는 바로 통과하고, 시계 이월은 항상 없음으로 둔다.
+// 라운드 하나의 진행 흐름. 진행 단계, 셔플 테이블, 체력, 딜러 AI, 아이템 상태를 묶고,
+// 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다. 화면은 참조하지 않으며, 화면은 이벤트를 받을 때만 상태를 다시 읽는다.
+// 아이템 효과와 딜러의 아이템 판단은 아직 없어, 시계 이월은 항상 없고 딜러는 아이템 단계를 바로 끝낸다.
 public class GameFlow
 {
     private readonly System.Random _random;
     private readonly PhaseMachine _phaseMachine = new PhaseMachine();
     private readonly HealthState _health;
     private readonly DealerAI _dealer;
+    private readonly ItemState _items;
 
-    // 카드 셔플마다 새로 만든다. StartRound 이후에 값이 있다
+    // 카드 셔플마다 새로 만든다
     private ShuffleTable _table;
 
     // 정산 결과 라운드가 끝나는지. 정산 확인 입력(Next)에서 진행 단계로 넘긴다
     private bool _isRoundOverAfterSettlement;
 
-    // 진행 로그 한 줄 (화면의 진행 로그 표시용)
     public event Action<string> Logged;
-
-    // 판정 기록 한 줄: 선 정하기, 각 판의 판정, 정산 결과 (UI·UX 화면 흐름 세부 기획서 5-5장 판정 기록, JudgmentRecordRules)
     public event Action<string> JudgmentRecorded;
 
-    // 판정 기록을 비우는 신호. 카드 셔플(카드풀 공개, UI·UX 화면 흐름 세부 기획서 3-1장 셔플-02)이 시작될 때마다 보낸다.
-    // 선 정하기가 비겨 다시 섞을 때도 보낸다
+    // 카드 셔플이 시작될 때마다 보낸다. 선 정하기가 비겨 다시 섞을 때도 보낸다
     public event Action JudgmentRecordCleared;
 
-    // 진행 단계가 바뀔 때 (이전 단계, 새 단계)를 알린다. 진행 단계 관리(PhaseMachine)의 알림을 그대로 다시 보낸다.
-    // 단, 카드 셔플 단계로 들어가는 알림은 보내지 않는다. 라운드 첫 카드 셔플은 셔플 테이블을 만들기 전이라 턴 플레이어 같은 상태를 읽을 수 없고,
-    // 카드 셔플은 입력을 기다리지 않고 바로 지나가는 단계라 셔플 테이블이 준비된 뒤의 다음 단계 알림으로 충분하다
+    // 카드 셔플 단계로 들어가는 알림은 보내지 않는다. 라운드 첫 카드 셔플은 셔플 테이블이 없어 턴 플레이어를 읽을 수 없다
     public event Action<GamePhase, GamePhase> PhaseChanged;
 
-    // 카드의 위치나 공개 상태가 바뀔 때: 시작 카드 분배, 뽑기, 분배, 판 카드 공개, 남은 카드 공개
+    // 아래 알림은 상태가 실제로 바뀌었을 때만 보낸다. 카드풀 정보는 판 시작 때만 정해져 그때 보낸다
     public event Action CardsChanged;
-
-    // 카드풀 정보(카드풀 구성, 판 시작 때 더미 장수)가 바뀔 때. 둘 다 판 시작(BeginMatch)에서만 화면에 맞는 값이 정해지므로 그때 보낸다
     public event Action DeckChanged;
-
-    // 판정 또는 정산으로 체력이 실제로 바뀌었을 때 한 번 보낸다
     public event Action HealthChanged;
+    public event Action ItemsChanged;
+    public event Action ItemUsed;
 
     public GamePhase CurrentPhase => _phaseMachine.CurrentPhase;
     public int MatchIndex => _phaseMachine.MatchIndex;
@@ -51,23 +41,24 @@ public class GameFlow
     public Card DrawnCard => _table.DrawnCard;
     public int RemainingDeckCount => _table.RemainingDeckCount;
 
-    // 상단 정보 UI의 "n라운드"와 "카드 섞기 n번째" (UI·UX 화면 흐름 세부 기획서 5-1장 상단 정보 UI, TopInfoRules).
-    // 카드 셔플 번호는 딜러와 몇 번째 카드 셔플을 하는 중인지를 보여 주므로 카드 셔플을 시작할 때 1씩 늘린다.
-    // 선 정하기가 비겨 다시 섞는 것은 같은 카드 셔플을 다시 시작하는 것이라 늘리지 않는다
+    // 상단 정보의 라운드 번호와 카드 셔플 번호.
+    // 카드 셔플 번호는 카드 셔플을 시작할 때 1씩 늘리고, 선 정하기가 비겨 다시 섞을 때는 같은 카드 셔플이라 늘리지 않는다
     public int RoundNumber { get; }
     public int ShuffleCount { get; private set; }
 
-    // 카드풀 정보의 "n장 → n장" (UI·UX 화면 흐름 세부 기획서 5-4장 카드풀).
-    // 판 시작 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값("3장 → 1장")이 그대로 남는다
+    // 카드풀 정보의 "n장 → n장". 판 시작 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값이 그대로 남는다
     public int MatchStartDeckCount { get; private set; }
     public int MatchEndDeckCount => MatchStartDeckCount - CardsPerMatch;
 
     // 한 판에 더미에서 나가는 카드: 뽑은 카드 1장 + 남은 자리에 들어가는 더미의 다음 카드 1장 (ShuffleTable.Distribute)
     private const int CardsPerMatch = 2;
 
-    // 딜러가 턴 플레이어인 판에서, 딜러가 뽑은 카드를 확인하며 분배를 고민하는 중인지 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03).
-    // 딜러는 판 시작 때 먼저 뽑아 두므로 분배 단계에서 기다린다. 고민 중 대기 시간은 화면 쪽(GameFlowRunner)이 재고, 끝나면 PlayDealerTurn을 부른다
+    // 딜러가 턴 플레이어인 판에서 뽑은 카드를 보며 분배를 고민하는 중인지.
+    // 딜러는 판 시작 때 먼저 뽑아 두므로 분배 단계에서 기다린다. 대기 시간은 GameFlowRunner가 재고, 끝나면 PlayDealerTurn을 부른다
     public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && TurnPlayer == Side.Dealer;
+
+    // 이번 판에 양쪽이 쓴 아이템과 돋보기 뒤 교환 여부
+    public IReadOnlyList<(Side User, ItemType Item, bool Exchanged)> ItemUses => _items.ItemUses;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, System.Random random)
@@ -76,9 +67,11 @@ public class GameFlow
         RoundNumber = round.RoundNumber;
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
+        _items = new ItemState(round.ItemCapacity);
 
-        // 진행 단계 관리는 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
+        // 진행 단계 관리와 아이템 상태는 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
         _phaseMachine.PhaseChanged += OnPhaseMachineChanged;
+        _items.Changed += OnItemsChanged;
     }
 
     public int GetHealth(Side side)
@@ -86,12 +79,24 @@ public class GameFlow
         return _health.GetHealth(side);
     }
 
+    // 보유 아이템은 양쪽에 항상 공개된다. 화면은 읽기만 하고, 바꾸는 것은 이 클래스의 입력과 지급뿐이다
+    public IReadOnlyList<ItemType> GetItems(Side side)
+    {
+        return _items.GetItems(side);
+    }
+
+    // [아이템 사용 완료]·[아이템 없음] 버튼 전환에 쓴다
+    public bool HasUsableItem(Side side)
+    {
+        return _items.HasUsableItem(side, TurnPlayer);
+    }
+
     public IReadOnlyList<Card> GetCombinationSlots(Side side)
     {
         return _table.GetCombinationSlots(side);
     }
 
-    // 이번 카드 셔플의 카드풀 구성 (항상 공개되는 정보). 카드 셔플 동안 바뀌지 않는다
+    // 이번 카드 셔플의 카드풀 구성. 카드 셔플 동안 바뀌지 않는다
     public int GetPoolCardCount(HandShape shape)
     {
         return _table.GetPoolCardCount(shape);
@@ -125,7 +130,7 @@ public class GameFlow
         return true;
     }
 
-    // 플레이어가 뽑은 카드를 가지거나(keep: true) 딜러에게 준다(keep: false). 이어서 판정까지 진행한다
+    // 플레이어가 뽑은 카드를 가지거나(keep: true) 딜러에게 준다(keep: false). 이어서 아이템 단계로 간다
     public bool Distribute(bool keep)
     {
         if (CurrentPhase != GamePhase.Distribute || TurnPlayer != Side.Player)
@@ -137,11 +142,38 @@ public class GameFlow
         CardsChanged?.Invoke();
         Log(keep ? "플레이어가 카드를 가졌다" : "플레이어가 카드를 딜러에게 줬다");
         _phaseMachine.CompleteDistribute();
-        ResolveMatch();
+        StartItemPhase();
         return true;
     }
 
-    // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 이미 뽑아 둔 카드를 분배한 뒤 판정까지 진행한다
+    // 플레이어의 아이템 단계에서 아이템 하나를 쓴다. 쓸 수 없는 아이템이면 무시한다.
+    // 효과는 아직 없고, 보유 칸에서 빼고 사용 기록에 남긴다
+    public bool UseItem(ItemType item)
+    {
+        if (!IsPlayerItemPhase() || !_items.TryUseItem(Side.Player, item, TurnPlayer))
+        {
+            return Ignore($"{nameof(UseItem)}({item})");
+        }
+
+        Log($"플레이어가 {DisplayNames.GetItemName(item)}를 썼다");
+        ItemUsed?.Invoke();
+        return true;
+    }
+
+    // 플레이어의 [아이템 사용 완료] 또는 [아이템 없음] 입력. 상대 단계나 카드 공개로 넘어간다
+    public bool FinishItemPhase()
+    {
+        if (!IsPlayerItemPhase())
+        {
+            return Ignore(nameof(FinishItemPhase));
+        }
+
+        _phaseMachine.CompleteItemUse();
+        ContinueItemPhase();
+        return true;
+    }
+
+    // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 이미 뽑아 둔 카드를 분배한 뒤 아이템 단계로 간다
     public bool PlayDealerTurn()
     {
         if (!IsWaitingForDealer)
@@ -159,7 +191,7 @@ public class GameFlow
         bool dealerKept = dealerSlots[dealerSlots.Count - 1] == drawnCard;
         Log(dealerKept ? "딜러가 카드를 가졌다" : "딜러가 카드를 플레이어에게 줬다");
         _phaseMachine.CompleteDistribute();
-        ResolveMatch();
+        StartItemPhase();
         return true;
     }
 
@@ -219,9 +251,12 @@ public class GameFlow
     }
 
     // 판 시작. 플레이어 차례면 카드 뽑기 입력을 기다린다.
-    // 딜러 차례면 딜러가 바로 뽑고, 뽑은 카드를 보여 주는 고민 중 대기 뒤의 PlayDealerTurn을 기다린다 (UI·UX 화면 흐름 세부 기획서 3-1장 판-03)
+    // 딜러 차례면 딜러가 바로 뽑고, 고민 중 대기 뒤의 PlayDealerTurn을 기다린다
     private void BeginMatch()
     {
+        // 같은 종류는 한 판에 한 번이므로 판이 바뀌면 양쪽 사용 기록을 비운다
+        _items.ClearItemUses();
+
         // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 기록한다
         MatchStartDeckCount = _table.RemainingDeckCount;
         DeckChanged?.Invoke();
@@ -237,13 +272,55 @@ public class GameFlow
         Log("딜러가 카드를 뽑았다 (딜러만 앎)");
     }
 
-    // 아이템 단계 통과 → 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
+    // 분배 뒤 아이템 단계 시작. 턴 플레이어 → 상대 순서로 한 번씩 쓰고, 번갈아 주고받지 않는다.
+    // 보유 한도가 0인 라운드(1라운드)는 아이템이 없어 아이템 단계를 건너뛴다
+    private void StartItemPhase()
+    {
+        if (_items.Capacity == 0)
+        {
+            _phaseMachine.CompleteItemUse();
+            _phaseMachine.CompleteItemUse();
+            ResolveMatch();
+            return;
+        }
+
+        ContinueItemPhase();
+    }
+
+    // 지금 아이템 단계가 플레이어 차례면 입력(UseItem, FinishItemPhase)을 기다린다.
+    // 딜러 차례는 바로 끝낸다. 딜러의 아이템 판단이 아직 없어, 쓸 수 있는 아이템이 있어도 쓰지 않는다.
+    // 두 단계가 모두 끝나면 카드 공개로 간다
+    private void ContinueItemPhase()
+    {
+        while (CurrentPhase == GamePhase.ItemTurnPlayer || CurrentPhase == GamePhase.ItemOpponent)
+        {
+            if (GetItemPhaseSide() == Side.Player)
+            {
+                return;
+            }
+
+            Log("딜러가 아이템 단계를 끝냈다");
+            _phaseMachine.CompleteItemUse();
+        }
+
+        ResolveMatch();
+    }
+
+    // 지금 아이템 단계에서 아이템을 쓰는 쪽: 턴 플레이어 단계면 턴 플레이어, 상대 단계면 그 상대
+    private Side GetItemPhaseSide()
+    {
+        return CurrentPhase == GamePhase.ItemTurnPlayer ? TurnPlayer : ShuffleTable.Opponent(TurnPlayer);
+    }
+
+    private bool IsPlayerItemPhase()
+    {
+        bool isItemPhase = CurrentPhase == GamePhase.ItemTurnPlayer || CurrentPhase == GamePhase.ItemOpponent;
+        return isItemPhase && GetItemPhaseSide() == Side.Player;
+    }
+
+    // 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
     private void ResolveMatch()
     {
-        // S1은 아이템이 없어 턴 플레이어와 상대의 아이템 단계를 바로 끝낸다
-        _phaseMachine.CompleteItemUse();
-        _phaseMachine.CompleteItemUse();
-
         _table.RevealMatchCards();
         CardsChanged?.Invoke();
         _phaseMachine.CompleteReveal();
@@ -281,7 +358,7 @@ public class GameFlow
         }
     }
 
-    // 남은 1장 공개 → 양쪽 조합 효과 동시 적용 (코어 규칙 상세 기획서 4-3장 정산 순서). 정산 확인 입력을 기다린다
+    // 남은 1장 공개 → 양쪽 조합 효과 동시 적용. 정산 확인 입력을 기다린다
     private void ApplySettlement()
     {
         Card remaining = _table.RevealRemainingCard();
@@ -338,6 +415,11 @@ public class GameFlow
         }
 
         PhaseChanged?.Invoke(previous, next);
+    }
+
+    private void OnItemsChanged()
+    {
+        ItemsChanged?.Invoke();
     }
 
     private void NotifyHealthIfChanged(int playerHealthBefore, int dealerHealthBefore)
