@@ -784,6 +784,7 @@ MonoBehaviour:
   _ruleSettings: {fileID: 11400000, guid: 8936215d231336142a36568fd9a3a82c, type: 2}
   _roundSettings: {fileID: 11400000, guid: 839f177c0d5316642aa4cac1cba8ca8e, type: 2}
   _dealerSettings: {fileID: 11400000, guid: 7790347a1ed70d24d8cdf2ec064b4614, type: 2}
+  _itemSettings: {fileID: 11400000, guid: 57e88caa1cf8acc4a9eefd7ee32028c0, type: 2}
   _displayTimeSettings: {fileID: 11400000, guid: 59a013a7e89c60d46bf9d6b2b5f3b02a, type: 2}
 --- !u!4 &121284436
 Transform:
@@ -8245,7 +8246,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1222250525
 Transform:
   m_ObjectHideFlags: 0

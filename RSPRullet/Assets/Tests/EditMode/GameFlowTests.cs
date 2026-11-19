@@ -12,6 +12,7 @@ public class GameFlowTests
     private RuleSettings _rules;
     private RoundSettings _round;
     private DealerSettings _dealerSettings;
+    private ItemSettings _itemSettings;
 
     [SetUp]
     public void SetUp()
@@ -19,6 +20,7 @@ public class GameFlowTests
         _rules = ScriptableObject.CreateInstance<RuleSettings>();
         _round = ScriptableObject.CreateInstance<RoundSettings>();
         _dealerSettings = ScriptableObject.CreateInstance<DealerSettings>();
+        _itemSettings = ScriptableObject.CreateInstance<ItemSettings>();
     }
 
     [TearDown]
@@ -27,11 +29,12 @@ public class GameFlowTests
         Object.DestroyImmediate(_rules);
         Object.DestroyImmediate(_round);
         Object.DestroyImmediate(_dealerSettings);
+        Object.DestroyImmediate(_itemSettings);
     }
 
     private GameFlow StartFlow(int seed)
     {
-        var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+        var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
         flow.StartRound();
         return flow;
     }
@@ -42,11 +45,22 @@ public class GameFlowTests
         if (flow.IsWaitingForDealer)
         {
             flow.PlayDealerTurn();
+            FinishPlayerItemPhase(flow);
             return;
         }
 
         flow.DrawCard();
         flow.Distribute(keep: true);
+        FinishPlayerItemPhase(flow);
+    }
+
+    // 아이템이 있는 라운드면 플레이어 아이템 단계에서 멈추므로, 아이템을 쓰지 않고 끝내 판 결과까지 간다
+    private static void FinishPlayerItemPhase(GameFlow flow)
+    {
+        if (flow.CurrentPhase == GamePhase.ItemTurnPlayer || flow.CurrentPhase == GamePhase.ItemOpponent)
+        {
+            flow.FinishItemPhase();
+        }
     }
 
     // 두 판을 진행해 정산 확인 지점(또는 판 도중 라운드 종료)까지 간다
@@ -196,7 +210,7 @@ public class GameFlowTests
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             var logs = new List<string>();
             flow.Logged += logs.Add;
             flow.StartRound();
@@ -292,7 +306,7 @@ public class GameFlowTests
 
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             int drawCount = 0;
             flow.Logged += log =>
             {
@@ -432,7 +446,7 @@ public class GameFlowTests
 
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             var lines = new List<string>();
             flow.JudgmentRecorded += lines.Add;
             flow.JudgmentRecordCleared += lines.Clear;
@@ -476,7 +490,7 @@ public class GameFlowTests
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             var phases = new List<GamePhase>();
             flow.PhaseChanged += (previous, next) =>
             {
@@ -538,7 +552,7 @@ public class GameFlowTests
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
-            var flow = new GameFlow(_rules, _round, _dealerSettings, new System.Random(seed));
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             int count = 0;
             flow.DeckChanged += () => count++;
 
@@ -682,5 +696,115 @@ public class GameFlowTests
         Assert.IsFalse(flow.UseItem(ItemType.Coffee));
         Assert.IsFalse(flow.FinishItemPhase());
         Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
+    }
+
+
+    // ── 아이템 지급 (아이템 세부 기획서 4-2장 지급 시점, 코어 규칙 상세 기획서 6장 예외 E1) ──
+
+    // 3라운드 값: 보유 한도 6, 라운드 시작 돋보기 1, 카드 셔플당 2
+    private const int Round3Capacity = 6;
+    private const int Round3StartMagnifierCount = 1;
+    private const int Round3ItemsPerShuffle = 2;
+
+    private void SetRound3ItemValues()
+    {
+        var round = new SerializedObject(_round);
+        round.FindProperty("_itemCapacity").intValue = Round3Capacity;
+        round.FindProperty("_startMagnifierCount").intValue = Round3StartMagnifierCount;
+        round.FindProperty("_itemsPerShuffle").intValue = Round3ItemsPerShuffle;
+        round.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 라운드의 첫 카드 셔플까지 라운드 시작 돋보기와 셔플 지급을 모두 받는다 (첫 셔플 후 보유 3 / 6)
+    [Test]
+    public void StartRound_SuppliesStartMagnifierThenShuffleItems()
+    {
+        SetRound3ItemValues();
+        const int expectedCount = Round3StartMagnifierCount + Round3ItemsPerShuffle;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+
+            foreach (Side side in new[] { Side.Player, Side.Dealer })
+            {
+                Assert.AreEqual(expectedCount, flow.GetItems(side).Count, $"seed {seed} {side}");
+                Assert.AreEqual(ItemType.Magnifier, flow.GetItems(side)[0], $"seed {seed} {side}");
+            }
+        }
+    }
+
+    // 선 정하기가 비겨 다시 섞어도 셔플 지급은 한 번만 받는다
+    [Test]
+    public void DecideFirstDraw_Reshuffle_DoesNotSupplyAgain()
+    {
+        SetRound3ItemValues();
+        const int expectedCount = Round3StartMagnifierCount + Round3ItemsPerShuffle;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
+            var logs = new List<string>();
+            flow.Logged += logs.Add;
+            flow.StartRound();
+
+            if (!logs.Exists(log => log.Contains("무승부")))
+            {
+                continue;
+            }
+
+            Assert.AreEqual(expectedCount, flow.GetItems(Side.Player).Count);
+            Assert.AreEqual(expectedCount, flow.GetItems(Side.Dealer).Count);
+            return;
+        }
+
+        Assert.Fail("선 정하기 무승부가 나는 시드를 찾지 못했다");
+    }
+
+    // 정산 뒤 다음 카드 셔플에서 셔플당 개수만큼 더 받는다. 쓰지 않은 아이템은 남는다 (아이템 세부 기획서 4-1장)
+    [Test]
+    public void NextShuffle_SuppliesShuffleItemsAgain()
+    {
+        SetRound3ItemValues();
+        const int expectedCount = Round3StartMagnifierCount + Round3ItemsPerShuffle * 2;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement)
+            {
+                continue;
+            }
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd)
+            {
+                continue;
+            }
+
+            Assert.AreEqual(2, flow.ShuffleCount);
+            Assert.AreEqual(expectedCount, flow.GetItems(Side.Player).Count);
+            Assert.AreEqual(expectedCount, flow.GetItems(Side.Dealer).Count);
+            return;
+        }
+
+        Assert.Fail("두 번째 카드 셔플까지 가는 시드를 찾지 못했다");
+    }
+
+    // 같은 난수 시드면 양쪽이 같은 아이템을 받는다 (테스트 재현용)
+    [Test]
+    public void SameSeed_SuppliesSameItems()
+    {
+        SetRound3ItemValues();
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow first = StartFlow(seed);
+            GameFlow second = StartFlow(seed);
+
+            CollectionAssert.AreEqual(first.GetItems(Side.Player), second.GetItems(Side.Player), $"seed {seed}");
+            CollectionAssert.AreEqual(first.GetItems(Side.Dealer), second.GetItems(Side.Dealer), $"seed {seed}");
+        }
     }
 }
