@@ -79,7 +79,7 @@ public class ItemState
         return false;
     }
 
-    // 쓸 수 있으면 보유 칸에서 빼고 기록한다. 효과는 상태를 가진 곳(체력 상태, 셔플 테이블)이 맡는다
+    // 쓸 수 있으면 보유 칸에서 빼고 기록한다. 효과는 상태를 가진 곳(체력 상태, 테이블 상태)이 맡는다
     public bool TryUseItem(Side user, ItemType item, Side turnPlayer)
     {
         if (!CanUseItem(user, item, turnPlayer))

@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 라운드 하나의 진행 흐름. 진행 단계, 셔플 테이블, 체력, 딜러 AI, 아이템 상태를 묶고,
+// 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고,
 // 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다. 화면은 참조하지 않으며, 화면은 이벤트를 받을 때만 상태를 다시 읽는다.
+// 이 클래스는 흐름(단계 진행, 입력 확인, 지급·다시 섞기 시점, 아이템 단계 차례, 기록·로그를 남기는 시점)만 정한다.
+// 상태 계산과 변경 알림은 상태를 가진 클래스(TableState, HealthState, ItemState)가 맡고, 이 클래스는 알림을 화면에 넘긴다.
 // 아이템 효과와 딜러의 아이템 판단은 아직 없어, 시계 이월은 항상 없고 딜러는 아이템 단계를 바로 끝낸다.
 public class GameFlow
 {
@@ -18,7 +20,7 @@ public class GameFlow
     private readonly RoundSettings _round;
 
     // 카드 셔플마다 새로 만든다
-    private ShuffleTable _table;
+    private TableState _table;
 
     // 정산 결과 라운드가 끝나는지. 정산 확인 입력(Next)에서 진행 단계로 넘긴다
     private bool _isRoundOverAfterSettlement;
@@ -29,10 +31,11 @@ public class GameFlow
     // 카드 셔플이 시작될 때마다 보낸다. 선 정하기가 비겨 다시 섞을 때도 보낸다
     public event Action JudgmentRecordCleared;
 
-    // 카드 셔플 단계로 들어가는 알림은 보내지 않는다. 라운드 첫 카드 셔플은 셔플 테이블이 없어 턴 플레이어를 읽을 수 없다
+    // 카드 셔플 단계로 들어가는 알림은 보내지 않는다. 라운드 첫 카드 셔플은 테이블 상태가 없어 턴 플레이어를 읽을 수 없다
     public event Action<GamePhase, GamePhase> PhaseChanged;
 
-    // 아래 알림은 상태가 실제로 바뀌었을 때만 보낸다. 카드풀 정보는 판 시작 때만 정해져 그때 보낸다
+    // 아래 알림은 상태가 실제로 바뀌었을 때만 보낸다. 카드풀 정보는 판 시작 때만 정해져 그때 보낸다.
+    // 카드·체력·아이템 알림은 각 상태 클래스의 알림을 그대로 넘긴다
     public event Action CardsChanged;
     public event Action DeckChanged;
     public event Action HealthChanged;
@@ -50,12 +53,9 @@ public class GameFlow
     public int RoundNumber { get; }
     public int ShuffleCount { get; private set; }
 
-    // 카드풀 정보의 "n장 → n장". 판 시작 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값이 그대로 남는다
-    public int MatchStartDeckCount { get; private set; }
-    public int MatchEndDeckCount => MatchStartDeckCount - CardsPerMatch;
-
-    // 한 판에 더미에서 나가는 카드: 뽑은 카드 1장 + 남은 자리에 들어가는 더미의 다음 카드 1장 (ShuffleTable.Distribute)
-    private const int CardsPerMatch = 2;
+    // 카드풀 정보의 "n장 → n장". 테이블 상태가 판 시작 때 기록한 값이다
+    public int MatchStartDeckCount => _table.MatchStartDeckCount;
+    public int MatchEndDeckCount => _table.MatchEndDeckCount;
 
     // 딜러가 턴 플레이어인 판에서 뽑은 카드를 보며 분배를 고민하는 중인지.
     // 딜러는 판 시작 때 먼저 뽑아 두므로 분배 단계에서 기다린다. 대기 시간은 GameFlowRunner가 재고, 끝나면 PlayDealerTurn을 부른다
@@ -75,8 +75,9 @@ public class GameFlow
         _dealer = new DealerAI(rules, dealerSettings, random);
         _items = new ItemState(round.ItemCapacity);
 
-        // 진행 단계 관리와 아이템 상태는 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
+        // 진행 단계 관리, 체력 상태, 아이템 상태는 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
         _phaseMachine.PhaseChanged += OnPhaseMachineChanged;
+        _health.Changed += OnHealthChanged;
         _items.Changed += OnItemsChanged;
     }
 
@@ -134,7 +135,6 @@ public class GameFlow
         }
 
         _table.DrawForTurnPlayer();
-        CardsChanged?.Invoke();
         _phaseMachine.CompleteDraw();
         Log($"뽑은 카드:{DisplayNames.GetShapeName(_table.DrawnCard.Shape)} (플레이어만 앎)");
         return true;
@@ -149,7 +149,6 @@ public class GameFlow
         }
 
         _table.Distribute(keep);
-        CardsChanged?.Invoke();
         Log(keep ? "플레이어가 카드를 가졌다" : "플레이어가 카드를 딜러에게 줬다");
         _phaseMachine.CompleteDistribute();
         StartItemPhase();
@@ -191,15 +190,10 @@ public class GameFlow
             return Ignore(nameof(PlayDealerTurn));
         }
 
-        // 분배하면 DrawnCard가 비므로 먼저 받아 둔다
-        Card drawnCard = _table.DrawnCard;
         _dealer.TryDistribute(_table, MatchIndex);
-        CardsChanged?.Invoke();
 
         // 가졌는지 줬는지는 항상 공개되는 정보다. 카드 내용은 딜러만 안다
-        IReadOnlyList<Card> dealerSlots = _table.GetCombinationSlots(Side.Dealer);
-        bool dealerKept = dealerSlots[dealerSlots.Count - 1] == drawnCard;
-        Log(dealerKept ? "딜러가 카드를 가졌다" : "딜러가 카드를 플레이어에게 줬다");
+        Log(_table.LastDistributionKept ? "딜러가 카드를 가졌다" : "딜러가 카드를 플레이어에게 줬다");
         _phaseMachine.CompleteDistribute();
         StartItemPhase();
         return true;
@@ -243,16 +237,17 @@ public class GameFlow
         do
         {
             JudgmentRecordCleared?.Invoke();
-            _table = new ShuffleTable(new CardDeck(CardPool.Create(_random), _random));
+            CreateTable();
             _phaseMachine.CompleteCardShuffle();
 
             _table.DealStartCards();
-            CardsChanged?.Invoke();
-            Log($"시작 카드: 플레이어 {GetSlotShapeName(Side.Player, 0)}, 딜러 {GetSlotShapeName(Side.Dealer, 0)}");
+            HandShape playerStartShape = _table.GetStartCard(Side.Player).Shape;
+            HandShape dealerStartShape = _table.GetStartCard(Side.Dealer).Shape;
+            Log(FlowLogText.GetStartCards(playerStartShape, dealerStartShape));
             _phaseMachine.CompleteStartCardDeal(hasClockCarryOver: false);
 
             isDecided = _table.DecideFirstTurnPlayer();
-            Record(JudgmentRecordRules.GetFirstTurnText(GetSlotShape(Side.Player, 0), GetSlotShape(Side.Dealer, 0)));
+            Record(JudgmentRecordRules.GetFirstTurnText(playerStartShape, dealerStartShape));
             _phaseMachine.CompleteDecideFirst(isDraw: !isDecided);
             if (!isDecided)
             {
@@ -265,6 +260,19 @@ public class GameFlow
         BeginMatch();
     }
 
+    // 새 테이블 상태를 만들고 카드 변경 알림을 구독한다.
+    // 이전 테이블은 버려지므로 구독을 해제해 둔다
+    private void CreateTable()
+    {
+        if (_table != null)
+        {
+            _table.Changed -= OnTableChanged;
+        }
+
+        _table = new TableState(new CardDeck(CardPool.Create(_random), _random));
+        _table.Changed += OnTableChanged;
+    }
+
     // 판 시작. 플레이어 차례면 카드 뽑기 입력을 기다린다.
     // 딜러 차례면 딜러가 바로 뽑고, 고민 중 대기 뒤의 PlayDealerTurn을 기다린다
     private void BeginMatch()
@@ -272,8 +280,8 @@ public class GameFlow
         // 같은 종류는 한 판에 한 번이므로 판이 바뀌면 양쪽 사용 기록을 비운다
         _items.ClearItemUses();
 
-        // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 기록한다
-        MatchStartDeckCount = _table.RemainingDeckCount;
+        // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 판 카드 수를 기록한다
+        _table.BeginMatch();
         DeckChanged?.Invoke();
         Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
         if (TurnPlayer != Side.Dealer)
@@ -282,7 +290,6 @@ public class GameFlow
         }
 
         _table.DrawForTurnPlayer();
-        CardsChanged?.Invoke();
         _phaseMachine.CompleteDraw();
         Log("딜러가 카드를 뽑았다 (딜러만 앎)");
     }
@@ -324,7 +331,7 @@ public class GameFlow
     // 지금 아이템 단계에서 아이템을 쓰는 쪽: 턴 플레이어 단계면 턴 플레이어, 상대 단계면 그 상대
     private Side GetItemPhaseSide()
     {
-        return CurrentPhase == GamePhase.ItemTurnPlayer ? TurnPlayer : ShuffleTable.Opponent(TurnPlayer);
+        return CurrentPhase == GamePhase.ItemTurnPlayer ? TurnPlayer : TableState.Opponent(TurnPlayer);
     }
 
     private bool IsPlayerItemPhase()
@@ -337,19 +344,15 @@ public class GameFlow
     private void ResolveMatch()
     {
         _table.RevealMatchCards();
-        CardsChanged?.Invoke();
         _phaseMachine.CompleteReveal();
 
-        HandShape playerShape = GetLastSlotShape(Side.Player);
-        HandShape dealerShape = GetLastSlotShape(Side.Dealer);
-        int playerHealthBefore = _health.GetHealth(Side.Player);
-        int dealerHealthBefore = _health.GetHealth(Side.Dealer);
+        HandShape playerShape = _table.GetMatchCard(Side.Player).Shape;
+        HandShape dealerShape = _table.GetMatchCard(Side.Dealer).Shape;
         MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape);
-        NotifyHealthIfChanged(playerHealthBefore, dealerHealthBefore);
         Record(JudgmentRecordRules.GetMatchText(MatchIndex, playerShape, dealerShape,
-            _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
-        Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetShapeName(playerShape)} vs {DisplayNames.GetShapeName(dealerShape)} → {GetResultName(playerResult)} " +
-            $"(체력 플레이어 {_health.GetHealth(Side.Player)} / 딜러 {_health.GetHealth(Side.Dealer)})");
+            _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer)));
+        Log(FlowLogText.GetMatchResult(MatchIndex, playerShape, dealerShape, playerResult,
+            _health.GetHealth(Side.Player), _health.GetHealth(Side.Dealer)));
         _phaseMachine.CompleteJudge();
     }
 
@@ -377,28 +380,16 @@ public class GameFlow
     private void ApplySettlement()
     {
         Card remaining = _table.RevealRemainingCard();
-        CardsChanged?.Invoke();
         Log($"정산: 남은 카드 {DisplayNames.GetShapeName(remaining.Shape)} 공개");
         Record(JudgmentRecordRules.GetRemainingCardText(remaining.Shape));
 
-        CombinationType playerCombination = JudgeCombination(Side.Player);
-        CombinationType dealerCombination = JudgeCombination(Side.Dealer);
-        int playerHealthBefore = _health.GetHealth(Side.Player);
-        int dealerHealthBefore = _health.GetHealth(Side.Dealer);
+        CombinationType playerCombination = _table.JudgeCombination(Side.Player);
+        CombinationType dealerCombination = _table.JudgeCombination(Side.Dealer);
         _isRoundOverAfterSettlement = _health.ApplySettlement(playerCombination, dealerCombination);
-        NotifyHealthIfChanged(playerHealthBefore, dealerHealthBefore);
         Record(JudgmentRecordRules.GetCombinationText(playerCombination, dealerCombination,
-            _health.GetHealth(Side.Player) - playerHealthBefore, _health.GetHealth(Side.Dealer) - dealerHealthBefore));
-        Log($"정산: 플레이어 {playerCombination}, 딜러 {dealerCombination} " +
-            $"(체력 플레이어 {_health.GetHealth(Side.Player)} / 딜러 {_health.GetHealth(Side.Dealer)})");
-    }
-
-    private CombinationType JudgeCombination(Side side)
-    {
-        return CombinationRules.Judge(
-            GetSlotShape(side, 0),
-            GetSlotShape(side, 1),
-            GetSlotShape(side, 2));
+            _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer)));
+        Log(FlowLogText.GetSettlement(playerCombination, dealerCombination,
+            _health.GetHealth(Side.Player), _health.GetHealth(Side.Dealer)));
     }
 
     private void LogRoundEnd()
@@ -407,19 +398,15 @@ public class GameFlow
         Log($"라운드 종료: {DisplayNames.GetSideName(winner)} 승리");
     }
 
-    private HandShape GetSlotShape(Side side, int index)
+    // 지급 뒤 양쪽 보유 아이템을 로그로 남긴다. 아이템이 없는 라운드(1라운드)는 남기지 않는다
+    private void LogHeldItems(string reason)
     {
-        return _table.GetCombinationSlots(side)[index].Shape;
-    }
+        if (_items.Capacity == 0)
+        {
+            return;
+        }
 
-    private HandShape GetLastSlotShape(Side side)
-    {
-        return GetSlotShape(side, _table.GetCombinationSlots(side).Count - 1);
-    }
-
-    private string GetSlotShapeName(Side side, int index)
-    {
-        return DisplayNames.GetShapeName(GetSlotShape(side, index));
+        Log(FlowLogText.GetHeldItems(reason, _items.GetItems(Side.Player), _items.GetItems(Side.Dealer)));
     }
 
     private void OnPhaseMachineChanged(GamePhase previous, GamePhase next)
@@ -432,41 +419,19 @@ public class GameFlow
         PhaseChanged?.Invoke(previous, next);
     }
 
-    // 지급 뒤 양쪽 보유 아이템을 로그로 남긴다. 아이템이 없는 라운드(1라운드)는 남기지 않는다
-    private void LogHeldItems(string reason)
+    private void OnTableChanged()
     {
-        if (_items.Capacity == 0)
-        {
-            return;
-        }
-
-        Log($"{reason}: 플레이어 [{GetItemNames(Side.Player)}], 딜러 [{GetItemNames(Side.Dealer)}]");
+        CardsChanged?.Invoke();
     }
 
-    private string GetItemNames(Side side)
+    private void OnHealthChanged()
     {
-        var names = new List<string>();
-        foreach (ItemType item in _items.GetItems(side))
-        {
-            names.Add(DisplayNames.GetItemName(item));
-        }
-
-        return string.Join(", ", names);
+        HealthChanged?.Invoke();
     }
 
     private void OnItemsChanged()
     {
         ItemsChanged?.Invoke();
-    }
-
-    private void NotifyHealthIfChanged(int playerHealthBefore, int dealerHealthBefore)
-    {
-        if (_health.GetHealth(Side.Player) == playerHealthBefore && _health.GetHealth(Side.Dealer) == dealerHealthBefore)
-        {
-            return;
-        }
-
-        HealthChanged?.Invoke();
     }
 
     private bool Ignore(string input)
@@ -484,18 +449,5 @@ public class GameFlow
     private void Record(string line)
     {
         JudgmentRecorded?.Invoke(line);
-    }
-
-    private static string GetResultName(MatchResult playerResult)
-    {
-        switch (playerResult)
-        {
-            case MatchResult.Win:
-                return "플레이어 승리";
-            case MatchResult.Lose:
-                return "딜러 승리";
-            default:
-                return "무승부";
-        }
     }
 }

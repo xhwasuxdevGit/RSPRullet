@@ -23,7 +23,7 @@ public static class CardFaceRules
     }
 
     // 카드 슬롯에 이번 판 카드가 놓여 있는 단계: 분배가 끝난 뒤부터 승패 판정 표시(판-07)까지.
-    // 이 동안 슬롯 카드는 각자 카드 조합 칸의 마지막 카드다 (ShuffleTable.Distribute)
+    // 이 동안 슬롯 카드는 각자 카드 조합 칸의 마지막 카드다 (TableState.Distribute)
     public static bool HasSlotCards(GamePhase phase)
     {
         switch (phase)

@@ -71,9 +71,9 @@ public class DealerAITests
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
     // 시작 카드를 나눈 뒤 firstTurnPlayer를 첫 번째 판 턴 플레이어로 둔 테이블
-    private static ShuffleTable MakeTable(Side firstTurnPlayer)
+    private static TableState MakeTable(Side firstTurnPlayer)
     {
-        var table = new ShuffleTable(new CardDeck(CardPool.Create(new System.Random(1)), new System.Random(1)));
+        var table = new TableState(new CardDeck(CardPool.Create(new System.Random(1)), new System.Random(1)));
         table.DealStartCards();
         table.SetFirstTurnPlayerByClock(firstTurnPlayer);
         return table;
@@ -123,7 +123,7 @@ public class DealerAITests
 
     // 1번째 판: 플레이어가 뽑아 가진다 → 2번째 판: 딜러가 뽑은 상태.
     // 플레이어가 가진 카드(플레이어만 앎)와 딜러 자리에 엎어진 카드(아무도 모름)는 딜러가 모르는 카드다
-    private static ShuffleTable MakeSecondMatchDealerDrawn()
+    private static TableState MakeSecondMatchDealerDrawn()
     {
         var table = MakeTable(Side.Player);
         table.DrawForTurnPlayer();
@@ -162,15 +162,15 @@ public class DealerAITests
     }
 
     // 더미 순서: 플레이어 시작 카드 → 딜러 시작 카드 → 이후 뽑는 순서. 넣은 7장이 그대로 카드풀이 된다
-    private static ShuffleTable MakeOrderedTable(params HandShape[] order)
+    private static TableState MakeOrderedTable(params HandShape[] order)
     {
-        var table = new ShuffleTable(new CardDeck(order.Select(shape => new Card(shape)), new KeepOrderRandom()));
+        var table = new TableState(new CardDeck(order.Select(shape => new Card(shape)), new KeepOrderRandom()));
         table.DealStartCards();
         return table;
     }
 
     // 1번째 판: 딜러가 턴 플레이어로 뽑은 상태
-    private static ShuffleTable MakeOrderedFirstMatchDealerDrawnTable(params HandShape[] order)
+    private static TableState MakeOrderedFirstMatchDealerDrawnTable(params HandShape[] order)
     {
         var table = MakeOrderedTable(order);
         table.SetFirstTurnPlayerByClock(Side.Dealer);
@@ -185,7 +185,7 @@ public class DealerAITests
 
     // 1번째 판을 firstTurnPlayer가 뽑아 가지고 카드를 공개한 뒤, 2번째 판에 딜러가 뽑은 상태.
     // firstTurnPlayer가 딜러면 시계를 쓴 것으로 보고 2번째 판도 딜러 차례로 둔다
-    private static ShuffleTable MakeOrderedSecondMatchDealerDrawnTable(Side firstTurnPlayer, params HandShape[] order)
+    private static TableState MakeOrderedSecondMatchDealerDrawnTable(Side firstTurnPlayer, params HandShape[] order)
     {
         var table = MakeOrderedTable(order);
         table.SetFirstTurnPlayerByClock(firstTurnPlayer);
@@ -203,7 +203,7 @@ public class DealerAITests
     }
 
     // 딜러가 분배한 뒤 뽑은 카드가 딜러의 이번 판 조합 칸에 들어갔는지 (가진다면 true)
-    private static bool DistributeAndCheckKept(DealerAI dealer, ShuffleTable table, int matchIndex)
+    private static bool DistributeAndCheckKept(DealerAI dealer, TableState table, int matchIndex)
     {
         Card drawn = table.DrawnCard;
         dealer.TryDistribute(table, matchIndex);

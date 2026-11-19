@@ -17,7 +17,7 @@ public class DealerKnownInfo
     // 딜러가 뽑아서 확인 중인 카드의 손 모양. 딜러 차례에 뽑은 뒤에만 만들므로 항상 딜러가 안다
     public HandShape DrawnShape { get; }
 
-    public DealerKnownInfo(ShuffleTable table, int matchIndex)
+    public DealerKnownInfo(TableState table, int matchIndex)
     {
         MatchIndex = matchIndex;
         DrawnShape = table.DrawnCard.Shape;

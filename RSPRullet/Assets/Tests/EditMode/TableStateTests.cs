@@ -1,7 +1,7 @@
 using System.Linq;
 using NUnit.Framework;
 
-public class ShuffleTableTests
+public class TableStateTests
 {
     // 셔플이 순서를 바꾸지 않도록 항상 마지막 칸을 고르는 난수.
     // 피셔-예이츠에서 j = i가 되어 넣은 순서 그대로 더미가 만들어진다
@@ -14,14 +14,14 @@ public class ShuffleTableTests
     }
 
     // 넣은 순서대로 맨 위부터 나오는 테이블을 만든다
-    private static ShuffleTable MakeTable(params HandShape[] shapesFromTop)
+    private static TableState MakeTable(params HandShape[] shapesFromTop)
     {
         var cards = shapesFromTop.Select(shape => new Card(shape));
-        return new ShuffleTable(new CardDeck(cards, new KeepOrderRandom()));
+        return new TableState(new CardDeck(cards, new KeepOrderRandom()));
     }
 
     // 7장 더미: 시작 카드(플레이어 가위, 딜러 보) 뒤로 바위 · 가위 · 보 · 바위 · 가위
-    private static ShuffleTable MakeTableWithPlayerFirst()
+    private static TableState MakeTableWithPlayerFirst()
     {
         var table = MakeTable(
             HandShape.Scissors, HandShape.Paper,
@@ -240,7 +240,7 @@ public class ShuffleTableTests
         AssertUnrevealed(table, scissors: 1, rock: 1, paper: 1);
     }
 
-    private static void AssertUnrevealed(ShuffleTable table, int scissors, int rock, int paper)
+    private static void AssertUnrevealed(TableState table, int scissors, int rock, int paper)
     {
         Assert.AreEqual(scissors, table.GetUnrevealedCardCount(HandShape.Scissors));
         Assert.AreEqual(rock, table.GetUnrevealedCardCount(HandShape.Rock));
@@ -258,5 +258,102 @@ public class ShuffleTableTests
         Assert.AreEqual(3, table.GetPoolCardCount(HandShape.Scissors));
         Assert.AreEqual(2, table.GetPoolCardCount(HandShape.Rock));
         Assert.AreEqual(2, table.GetPoolCardCount(HandShape.Paper));
+    }
+
+    // ---- RSP-88 상태 변경 알림과 판 정보 ----
+
+    // 카드 변경 알림: 시작 카드 1, 뽑기 1, 분배 1, 판 카드 공개 1, 남은 카드 공개 1. 턴 교대와 판 시작은 카드를 바꾸지 않아 알리지 않는다
+    [Test]
+    public void Changed_NotifiesOncePerCardOperation()
+    {
+        var table = MakeTable(
+            HandShape.Scissors, HandShape.Paper,
+            HandShape.Rock, HandShape.Scissors, HandShape.Paper, HandShape.Rock, HandShape.Scissors);
+        int changedCount = 0;
+        table.Changed += () => changedCount++;
+
+        table.DealStartCards();
+        Assert.AreEqual(1, changedCount);
+        table.DecideFirstTurnPlayer();
+        table.BeginMatch();
+        table.DrawForTurnPlayer();
+        Assert.AreEqual(2, changedCount);
+        table.Distribute(keep: true);
+        Assert.AreEqual(3, changedCount);
+        table.RevealMatchCards();
+        Assert.AreEqual(4, changedCount);
+        table.PassTurn(clockUsed: false);
+        Assert.AreEqual(4, changedCount);
+
+        table.BeginMatch();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.RevealMatchCards();
+        table.RevealRemainingCard();
+        Assert.AreEqual(8, changedCount);
+    }
+
+    // 판 카드 수: 첫 번째 판 5장 → 3장, 두 번째 판 3장 → 1장. 남은 카드를 공개해도 두 번째 판 값이 남는다
+    [Test]
+    public void MatchDeckCount_RecordedAtBeginMatch_KeptThroughSettlement()
+    {
+        var table = MakeTableWithPlayerFirst();
+
+        table.BeginMatch();
+        Assert.AreEqual(5, table.MatchStartDeckCount);
+        Assert.AreEqual(3, table.MatchEndDeckCount);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.PassTurn(clockUsed: false);
+
+        table.BeginMatch();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: false);
+        table.RevealRemainingCard();
+
+        Assert.AreEqual(3, table.MatchStartDeckCount);
+        Assert.AreEqual(1, table.MatchEndDeckCount);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void Distribute_RecordsLastDistributionKept(bool keep)
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+
+        table.Distribute(keep);
+
+        Assert.AreEqual(keep, table.LastDistributionKept);
+    }
+
+    // 시작 카드는 조합 칸 첫 카드, 이번 판 카드는 마지막 카드다
+    [Test]
+    public void GetStartCardAndMatchCard_ReturnFirstAndLastSlotCards()
+    {
+        var table = MakeTableWithPlayerFirst();
+        Card drawn = table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        Assert.AreEqual(HandShape.Scissors, table.GetStartCard(Side.Player).Shape);
+        Assert.AreEqual(HandShape.Paper, table.GetStartCard(Side.Dealer).Shape);
+        Assert.AreSame(drawn, table.GetMatchCard(Side.Player));
+        Assert.AreSame(table.GetCombinationSlots(Side.Dealer)[1], table.GetMatchCard(Side.Dealer));
+    }
+
+    // 첫 번째 판 플레이어가 바위를 가지고, 두 번째 판 딜러가 보를 주면
+    // 조합 칸은 플레이어 가위 → 바위 → 보, 딜러 보 → 가위 → 바위가 된다. 받은 순서대로 판정한다
+    [Test]
+    public void JudgeCombination_JudgesThreeSlotsInReceivedOrder()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.PassTurn(clockUsed: false);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: false);
+
+        Assert.AreEqual(CombinationRules.Judge(HandShape.Scissors, HandShape.Rock, HandShape.Paper), table.JudgeCombination(Side.Player));
+        Assert.AreEqual(CombinationRules.Judge(HandShape.Paper, HandShape.Scissors, HandShape.Rock), table.JudgeCombination(Side.Dealer));
     }
 }
