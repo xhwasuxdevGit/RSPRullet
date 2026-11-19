@@ -356,4 +356,103 @@ public class TableStateTests
         Assert.AreEqual(CombinationRules.Judge(HandShape.Scissors, HandShape.Rock, HandShape.Paper), table.JudgeCombination(Side.Player));
         Assert.AreEqual(CombinationRules.Judge(HandShape.Paper, HandShape.Scissors, HandShape.Rock), table.JudgeCombination(Side.Dealer));
     }
+
+    // ---- RSP-54 돋보기 ----
+
+    // 플레이어가 턴 플레이어로 뽑은 바위를 가지면, 딜러 자리의 엎어진 가위를 돋보기로 본 플레이어만 알게 된다
+    [Test]
+    public void PeekOpponentMatchCard_OnlyUserLearnsOpponentCard()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        Card peeked = table.PeekOpponentMatchCard(Side.Player);
+
+        Assert.AreSame(table.GetMatchCard(Side.Dealer), peeked);
+        Assert.IsTrue(peeked.KnownByPlayer);
+        Assert.IsFalse(peeked.KnownByDealer);
+    }
+
+    // 코어 규칙 상세 기획서 5-3장 경우 A~D. 플레이어가 턴 플레이어이고, 돋보기 확인 뒤 교환한 결과의
+    // 양쪽 자리 카드를 각각 플레이어·딜러가 아는지 확인한다. 아는 사람 정보는 카드를 따라 옮겨진다
+    [TestCase(true, Side.Player, true, false, true, false)]    // A: 가진 뒤 턴 플레이어가 교환
+    [TestCase(false, Side.Player, true, false, false, false)]  // B: 준 뒤 턴 플레이어가 교환
+    [TestCase(true, Side.Dealer, false, false, true, true)]    // C: 가진 뒤 상대가 교환
+    [TestCase(false, Side.Dealer, true, false, false, true)]   // D: 준 뒤 상대가 교환
+    public void PeekAndSwap_KnownInfoMovesWithCards(bool keep, Side user,
+        bool playerSlotKnownByPlayer, bool playerSlotKnownByDealer, bool dealerSlotKnownByPlayer, bool dealerSlotKnownByDealer)
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep);
+        Card playerCardBefore = table.GetMatchCard(Side.Player);
+        Card dealerCardBefore = table.GetMatchCard(Side.Dealer);
+
+        table.PeekOpponentMatchCard(user);
+        table.SwapMatchCards();
+
+        Card playerCard = table.GetMatchCard(Side.Player);
+        Card dealerCard = table.GetMatchCard(Side.Dealer);
+        Assert.AreSame(dealerCardBefore, playerCard);
+        Assert.AreSame(playerCardBefore, dealerCard);
+        Assert.AreEqual(playerSlotKnownByPlayer, playerCard.KnownByPlayer);
+        Assert.AreEqual(playerSlotKnownByDealer, playerCard.KnownByDealer);
+        Assert.AreEqual(dealerSlotKnownByPlayer, dealerCard.KnownByPlayer);
+        Assert.AreEqual(dealerSlotKnownByDealer, dealerCard.KnownByDealer);
+    }
+
+    // 상대가 다시 교환하면 카드가 원래 자리로 돌아오고 교환 표시 대상이 아니다 (아이템 세부 기획서 5장 I1·I2)
+    [Test]
+    public void SwapTwice_ReturnsCards_AndIsNotSwapped()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        Card playerCardBefore = table.GetMatchCard(Side.Player);
+        Assert.IsFalse(table.IsMatchCardSwapped);
+
+        table.SwapMatchCards();
+        Assert.IsTrue(table.IsMatchCardSwapped);
+
+        table.SwapMatchCards();
+        Assert.IsFalse(table.IsMatchCardSwapped);
+        Assert.AreSame(playerCardBefore, table.GetMatchCard(Side.Player));
+    }
+
+    // 교환 여부는 판마다 분배 직후 위치를 기준으로 하므로, 다음 판 분배 뒤에는 다시 false다
+    [Test]
+    public void IsMatchCardSwapped_ResetsAtNextDistribute()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.SwapMatchCards();
+        table.PassTurn(clockUsed: false);
+
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+
+        Assert.IsFalse(table.IsMatchCardSwapped);
+    }
+
+    // 확인으로 새로 알게 된 정보가 있을 때와 교환할 때만 카드 변경을 알린다. 이미 알던 카드를 보면 알리지 않는다 (경우 B)
+    [Test]
+    public void PeekAndSwap_NotifyOnlyWhenCardInfoChanges()
+    {
+        var table = MakeTableWithPlayerFirst();
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: false);
+        int changedCount = 0;
+        table.Changed += () => changedCount++;
+
+        table.PeekOpponentMatchCard(Side.Player);
+        Assert.AreEqual(0, changedCount);
+
+        table.PeekOpponentMatchCard(Side.Dealer);
+        Assert.AreEqual(1, changedCount);
+
+        table.SwapMatchCards();
+        Assert.AreEqual(2, changedCount);
+    }
 }

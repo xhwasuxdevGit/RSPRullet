@@ -50,9 +50,8 @@ public class TableCardsUI : MonoBehaviour
         ShowCard(_playerSlot, hasSlotCards ? GetLastCard(Side.Player) : null, phase);
         ShowCard(_dealerSlot, hasSlotCards ? GetLastCard(Side.Dealer) : null, phase);
 
-        // 실제로 교환됐는지는 돋보기 기능(RSP-54)에서 분배 직후 위치와 비교해 넘긴다. 그 전까지는 교환이 일어나지 않는다
-        bool isSwapped = false;
-        _swapMarker.SetActive(CardFaceRules.ShowsSwapMarker(isSwapped, phase));
+        // 교환 여부는 분배 직후와 지금 카드 위치를 비교한 값이다. 교환하면 카드 변경 알림이 와서 다시 그린다
+        _swapMarker.SetActive(CardFaceRules.ShowsSwapMarker(_flow.IsMatchCardSwapped, phase));
     }
 
     private void ShowCard(CardView view, Card card, GamePhase phase)

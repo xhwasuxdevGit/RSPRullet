@@ -16,7 +16,7 @@ public static class CardFaceRules
     }
 
     // 교환 표시도 승패 판정 때 지운다. 판정 뒤에는 카드 내용이 보이므로 필요 없다.
-    // 실제로 교환됐는지는 돋보기 기능(RSP-54)에서 분배 직후 위치와 비교해 넘긴다
+    // isSwapped는 분배 직후와 지금 카드 위치를 비교한 값(GameFlow.IsMatchCardSwapped)이다. 두 번 교환해 원래 자리로 돌아오면 false다
     public static bool ShowsSwapMarker(bool isSwapped, GamePhase phase)
     {
         return isSwapped && IsBeforeJudgment(phase);

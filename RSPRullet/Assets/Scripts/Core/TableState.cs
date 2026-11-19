@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // 카드 셔플 한 번 동안의 테이블 상태: 카드 더미, 양쪽 카드 조합 칸, 턴 플레이어.
-// 시작 카드와 선 정하기(7-2장 F4), 뽑기·분배·턴 교대(F5), 카드별 정보 공개 상태(F9)를 담당한다.
+// 시작 카드와 선 정하기(7-2장 F4), 뽑기·분배·턴 교대(F5), 카드별 정보 공개 상태(F9),
+// 돋보기의 상대 카드 확인과 판 카드 교환(아이템 세부 기획서 7-2장 I-F7)을 담당한다.
 // 선 정하기에서 비기면 카드풀부터 다시 만들어야 하므로, 카드 셔플마다 새로 만든다.
 public class TableState
 {
@@ -12,7 +13,7 @@ public class TableState
 
     private readonly CardDeck _deck;
 
-    // 카드 위치나 아는 사람 정보가 바뀌면 알린다: 시작 카드 배분, 뽑기, 분배, 판 카드 공개, 남은 카드 공개
+    // 카드 위치나 아는 사람 정보가 바뀌면 알린다: 시작 카드 배분, 뽑기, 분배, 돋보기 확인·교환, 판 카드 공개, 남은 카드 공개
     public event Action Changed;
 
     // 카드풀 정보의 "n장 → n장". 판 시작(BeginMatch) 때 더미 장수를 기록해 두므로, 정산 중에는 두 번째 판의 값이 그대로 남는다
@@ -21,6 +22,13 @@ public class TableState
 
     // 마지막 분배에서 턴 플레이어가 뽑은 카드를 가졌는지. 가졌는지 줬는지는 항상 공개되는 정보다
     public bool LastDistributionKept { get; private set; }
+
+    // 마지막 분배 직후 플레이어 자리에 들어간 카드. 교환 표시는 분배 직후와 지금 위치를 비교해 정한다
+    // (UI·UX 화면 흐름 세부 기획서 4-4장 교환 표시). 두 판 카드를 맞바꾸므로 한쪽 자리만 비교하면 된다
+    private Card _distributedPlayerCard;
+
+    // 이번 판 카드가 분배 직후와 다른 자리에 있는지. 두 번 교환해 원래 자리로 돌아오면 false다 (아이템 세부 기획서 5장 I2)
+    public bool IsMatchCardSwapped => _distributedPlayerCard != null && GetMatchCard(Side.Player) != _distributedPlayerCard;
 
     // 카드 조합 칸 (기획서 1장 용어). 받은 순서대로 시작 카드 → 첫 번째 판 → 두 번째 판 카드가 쌓인다
     private readonly List<Card> _playerSlots = new List<Card>();
@@ -129,7 +137,7 @@ public class TableState
     }
 
     // 5-2 분배: 가진다면 뽑은 카드가 턴 플레이어 자리로, 준다면 상대 자리로 간다.
-    // 남은 자리에는 더미의 다음 카드가 엎어진 채 들어가며, 그 카드는 아무도 모른다.
+    // 남은 자리에는 카드 더미의 다음 카드가 엎어진 채 들어가며, 그 카드는 아무도 모른다.
     public void Distribute(bool keep)
     {
         Side receiver = keep ? TurnPlayer : Opponent(TurnPlayer);
@@ -137,6 +145,33 @@ public class TableState
         AddToCombination(Opponent(receiver), _deck.Draw());
         DrawnCard = null;
         LastDistributionKept = keep;
+        _distributedPlayerCard = GetMatchCard(Side.Player);
+        Changed?.Invoke();
+    }
+
+    // 돋보기 확인: user가 상대 자리의 이번 판 카드를 알게 된다. 다른 쪽이 아는지는 바뀌지 않는다.
+    // 이미 알던 카드(내가 뽑아서 준 카드)면 바뀌는 정보가 없어 알리지 않는다 (코어 규칙 상세 기획서 5-3장 경우 B)
+    public Card PeekOpponentMatchCard(Side user)
+    {
+        Card opponentCard = GetMatchCard(Opponent(user));
+        if (IsKnownBy(opponentCard, user))
+        {
+            return opponentCard;
+        }
+
+        MarkKnownBy(opponentCard, user);
+        Changed?.Invoke();
+        return opponentCard;
+    }
+
+    // 돋보기 교환: 양쪽 이번 판 카드(각 조합 칸의 마지막 카드)를 맞바꾼다.
+    // 아는 사람 정보는 카드에 붙어 있어 카드와 함께 옮겨진다 (코어 규칙 상세 기획서 5-1장)
+    public void SwapMatchCards()
+    {
+        int lastIndex = _playerSlots.Count - 1;
+        Card playerCard = _playerSlots[lastIndex];
+        _playerSlots[lastIndex] = _dealerSlots[lastIndex];
+        _dealerSlots[lastIndex] = playerCard;
         Changed?.Invoke();
     }
 
@@ -219,7 +254,7 @@ public class TableState
         }
     }
 
-    // side의 조합 칸 맨 뒤에 카드를 넣는다. 조합 칸을 바꾸는 곳은 이 메서드 하나뿐이다
+    // side의 조합 칸 맨 뒤에 카드를 넣는다. 조합 칸에 카드를 넣는 곳은 이 메서드 하나뿐이고, 이미 든 카드는 돋보기 교환(SwapMatchCards)만 옮긴다
     private void AddToCombination(Side side, Card card)
     {
         List<Card> slots = side == Side.Player ? _playerSlots : _dealerSlots;
@@ -238,14 +273,14 @@ public class TableState
         card.KnownByDealer = true;
     }
 
-    private static bool IsKnownBy(Card card, Side side)
+    private static bool IsKnownBy(Card card, Side viewer)
     {
-        return side == Side.Player ? card.KnownByPlayer : card.KnownByDealer;
+        return viewer == Side.Player ? card.KnownByPlayer : card.KnownByDealer;
     }
 
-    private static void MarkKnownBy(Card card, Side side)
+    private static void MarkKnownBy(Card card, Side viewer)
     {
-        if (side == Side.Player)
+        if (viewer == Side.Player)
         {
             card.KnownByPlayer = true;
             return;

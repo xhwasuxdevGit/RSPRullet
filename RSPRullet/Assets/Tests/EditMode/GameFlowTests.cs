@@ -887,6 +887,110 @@ public class GameFlowTests
         Assert.IsTrue(sawWin && sawLoseOrDraw, "시드 범위 안에서 플레이어가 이기는 판과 지거나 비기는 판이 모두 나와야 한다");
     }
 
+
+    // ── 돋보기 (아이템 세부 기획서 2-2장 돋보기, 5장 I1·I2, 코어 규칙 상세 기획서 5-3장) ──
+    // 3라운드 값이면 라운드 시작 지급으로 양쪽 모두 돋보기를 1개 가지고 시작한다
+
+    // 플레이어가 턴 플레이어로 뽑은 카드를 가진 뒤, 플레이어 아이템 단계까지 진행한다
+    private GameFlow StartPlayerItemPhaseWithMagnifier()
+    {
+        SetRound3ItemValues();
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+        flow.DrawCard();
+        flow.Distribute(keep: true);
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+        return flow;
+    }
+
+    // 돋보기를 쓰면 딜러 자리 카드를 플레이어만 알게 되고, 진행 단계는 그대로인 채 선택을 기다린다.
+    // 고르는 동안에는 다른 아이템 입력을 받지 않는다
+    [Test]
+    public void UseMagnifier_OnlyPlayerLearnsDealerCard_AndWaitsForChoice()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+        Card dealerCard = GetLastSlotCard(flow, Side.Dealer);
+
+        Assert.IsTrue(flow.UseItem(ItemType.Magnifier));
+
+        Assert.IsTrue(dealerCard.KnownByPlayer);
+        Assert.IsFalse(dealerCard.KnownByDealer);
+        Assert.IsTrue(flow.IsWaitingForMagnifierChoice);
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+        Assert.IsFalse(flow.FinishItemPhase());
+        Assert.IsFalse(flow.UseItem(ItemType.Coffee));
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+    }
+
+    // 바꾼다: 카드가 아는 사람 정보와 함께 자리를 바꾸고, 사용 기록에 교환이 남는다.
+    // 판정에는 교환된 카드가 쓰이고, 사용 알림은 돋보기 사용과 선택 때 한 번씩 온다
+    [Test]
+    public void ChooseExchange_SwapsCards_RecordsExchange_AndJudgesSwappedCards()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+        Card playerCardBefore = GetLastSlotCard(flow, Side.Player);
+        Card dealerCardBefore = GetLastSlotCard(flow, Side.Dealer);
+        int itemUsedCount = 0;
+        flow.ItemUsed += () => itemUsedCount++;
+
+        flow.UseItem(ItemType.Magnifier);
+        Assert.IsTrue(flow.ChooseMagnifierExchange(exchange: true));
+
+        Assert.AreEqual(2, itemUsedCount);
+        Assert.IsFalse(flow.IsWaitingForMagnifierChoice);
+        Assert.IsTrue(flow.IsMatchCardSwapped);
+        Assert.AreSame(dealerCardBefore, GetLastSlotCard(flow, Side.Player));
+        Assert.AreSame(playerCardBefore, GetLastSlotCard(flow, Side.Dealer));
+        // 교환 뒤 플레이어 자리 카드(원래 딜러 자리 카드)는 플레이어만 안다 (코어 규칙 상세 기획서 5-3장 경우 A)
+        Assert.IsTrue(dealerCardBefore.KnownByPlayer);
+        Assert.IsFalse(dealerCardBefore.KnownByDealer);
+        Assert.AreEqual((Side.Player, ItemType.Magnifier, true), flow.ItemUses[0]);
+
+        int playerBefore = flow.GetHealth(Side.Player);
+        int dealerBefore = flow.GetHealth(Side.Dealer);
+        Assert.IsTrue(flow.FinishItemPhase());
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+
+        MatchResult playerResult = HandShapeRules.Compare(dealerCardBefore.Shape, playerCardBefore.Shape);
+        int expectedPlayerLoss = playerResult == MatchResult.Lose ? Mathf.Min(_rules.MatchDamage, playerBefore) : 0;
+        int expectedDealerLoss = playerResult == MatchResult.Win ? Mathf.Min(_rules.MatchDamage, dealerBefore) : 0;
+        Assert.AreEqual(expectedPlayerLoss, playerBefore - flow.GetHealth(Side.Player));
+        Assert.AreEqual(expectedDealerLoss, dealerBefore - flow.GetHealth(Side.Dealer));
+    }
+
+    // 그대로 둔다: 카드는 그대로이고 "돋보기 사용 / 교환 안 함"이 기록된다. 다시 아이템 단계 입력을 받는다
+    [Test]
+    public void ChooseKeep_LeavesCards_AndRecordsNoExchange()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+        Card playerCardBefore = GetLastSlotCard(flow, Side.Player);
+
+        flow.UseItem(ItemType.Magnifier);
+        Assert.IsTrue(flow.ChooseMagnifierExchange(exchange: false));
+
+        Assert.IsFalse(flow.IsWaitingForMagnifierChoice);
+        Assert.IsFalse(flow.IsMatchCardSwapped);
+        Assert.AreSame(playerCardBefore, GetLastSlotCard(flow, Side.Player));
+        Assert.AreEqual((Side.Player, ItemType.Magnifier, false), flow.ItemUses[0]);
+        Assert.IsTrue(flow.FinishItemPhase());
+    }
+
+    // 돋보기를 쓰지 않았으면 선택 입력을 무시한다
+    [Test]
+    public void ChooseMagnifierExchange_WithoutMagnifier_IsIgnored()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+
+        Assert.IsFalse(flow.ChooseMagnifierExchange(exchange: true));
+        Assert.IsFalse(flow.IsMatchCardSwapped);
+        Assert.AreEqual(0, flow.ItemUses.Count);
+    }
+
+    private static Card GetLastSlotCard(GameFlow flow, Side side)
+    {
+        IReadOnlyList<Card> slots = flow.GetCombinationSlots(side);
+        return slots[slots.Count - 1];
+    }
+
     private static int CountItem(IReadOnlyList<ItemType> items, ItemType item)
     {
         int count = 0;
