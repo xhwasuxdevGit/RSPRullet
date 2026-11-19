@@ -6,7 +6,7 @@ using UnityEngine;
 // 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다. 화면은 참조하지 않으며, 화면은 이벤트를 받을 때만 상태를 다시 읽는다.
 // 이 클래스는 흐름(단계 진행, 입력 확인, 지급·다시 섞기 시점, 아이템 단계 차례, 기록·로그를 남기는 시점)만 정한다.
 // 상태 계산과 변경 알림은 상태를 가진 클래스(TableState, HealthState, ItemState)가 맡고, 이 클래스는 알림을 화면에 넘긴다.
-// 아이템 효과와 딜러의 아이템 판단은 아직 없어, 시계 이월은 항상 없고 딜러는 아이템 단계를 바로 끝낸다.
+// 시계 효과와 딜러의 아이템 판단은 아직 없어, 시계 이월은 항상 없고 딜러는 아이템 단계를 바로 끝낸다.
 public class GameFlow
 {
     private readonly System.Random _random;
@@ -40,6 +40,8 @@ public class GameFlow
     public event Action DeckChanged;
     public event Action HealthChanged;
     public event Action ItemsChanged;
+
+    // 아이템을 썼을 때와, 돋보기 뒤 교환 여부를 골랐을 때 보낸다. 둘 다 사용 기록(ItemUses)이 공개하는 정보가 정해지는 시점이다
     public event Action ItemUsed;
 
     public GamePhase CurrentPhase => _phaseMachine.CurrentPhase;
@@ -63,6 +65,13 @@ public class GameFlow
 
     // 이번 판에 양쪽이 쓴 아이템과 돋보기 뒤 교환 여부
     public IReadOnlyList<(Side User, ItemType Item, bool Exchanged)> ItemUses => _items.ItemUses;
+
+    // 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 그대로 둘지 고르는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
+    // 고르는 동안에는 다른 아이템 입력을 받지 않고, ChooseMagnifierExchange만 받는다
+    public bool IsWaitingForMagnifierChoice { get; private set; }
+
+    // 이번 판 카드가 분배 직후와 다른 자리에 있는지 (교환 표시). 두 번 교환해 원래 자리로 돌아오면 false다
+    public bool IsMatchCardSwapped => _table.IsMatchCardSwapped;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택·아이템 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, ItemSettings itemSettings, System.Random random)
@@ -156,7 +165,8 @@ public class GameFlow
     }
 
     // 플레이어의 아이템 단계에서 아이템 하나를 쓴다. 쓸 수 없는 아이템이면 무시한다.
-    // 보유 칸에서 빼고 사용 기록에 남긴다. 커피는 판정 때 이 사용 기록을 읽어 효과를 낸다
+    // 보유 칸에서 빼고 사용 기록에 남긴다. 커피는 판정 때 이 사용 기록을 읽어 효과를 낸다.
+    // 돋보기는 딜러 카드를 플레이어에게만 보여 주고, 바꿀지 고르는 입력(ChooseMagnifierExchange)을 기다린다
     public bool UseItem(ItemType item)
     {
         if (!IsPlayerItemPhase() || !_items.TryUseItem(Side.Player, item, TurnPlayer))
@@ -165,6 +175,27 @@ public class GameFlow
         }
 
         Log($"플레이어가 {DisplayNames.GetItemName(item)}를 썼다");
+        if (item == ItemType.Magnifier)
+        {
+            PeekWithMagnifier(Side.Player);
+            IsWaitingForMagnifierChoice = true;
+        }
+
+        ItemUsed?.Invoke();
+        return true;
+    }
+
+    // 돋보기 선택 입력: 바꾼다(exchange: true)면 양쪽 이번 판 카드를 맞바꾸고, 그대로 둔다(false)면 카드는 그대로다.
+    // 어느 쪽이든 교환 여부는 공개되고, 플레이어 아이템 단계의 입력 대기로 돌아간다
+    public bool ChooseMagnifierExchange(bool exchange)
+    {
+        if (!IsWaitingForMagnifierChoice)
+        {
+            return Ignore($"{nameof(ChooseMagnifierExchange)}({exchange})");
+        }
+
+        IsWaitingForMagnifierChoice = false;
+        ApplyMagnifierChoice(Side.Player, exchange);
         ItemUsed?.Invoke();
         return true;
     }
@@ -334,10 +365,36 @@ public class GameFlow
         return CurrentPhase == GamePhase.ItemTurnPlayer ? TurnPlayer : TableState.Opponent(TurnPlayer);
     }
 
+    // 플레이어가 아이템 입력(UseItem, FinishItemPhase)을 할 수 있는지. 돋보기 선택 중에는 선택부터 끝내야 한다
     private bool IsPlayerItemPhase()
     {
         bool isItemPhase = CurrentPhase == GamePhase.ItemTurnPlayer || CurrentPhase == GamePhase.ItemOpponent;
-        return isItemPhase && GetItemPhaseSide() == Side.Player;
+        return isItemPhase && GetItemPhaseSide() == Side.Player && !IsWaitingForMagnifierChoice;
+    }
+
+    // 돋보기 확인: user가 상대 자리의 이번 판 카드를 알게 된다. 본 카드 내용은 쓴 사람만 안다 (아이템 세부 기획서 2-2장 돋보기).
+    // 딜러의 아이템 판단(RSP-58)도 같은 처리를 쓰도록 쓴 쪽을 받는다
+    private void PeekWithMagnifier(Side user)
+    {
+        Card peeked = _table.PeekOpponentMatchCard(user);
+        Side opponent = TableState.Opponent(user);
+        Log($"{DisplayNames.GetSideName(user)}가 돋보기로 {DisplayNames.GetSideName(opponent)} 카드를 확인했다: " +
+            $"{DisplayNames.GetShapeName(peeked.Shape)} ({DisplayNames.GetSideName(user)}만 앎)");
+    }
+
+    // 돋보기 선택 결과를 반영한다. 교환하면 카드와 아는 사람 정보가 함께 옮겨지고, 사용 기록에 교환을 남긴다.
+    // 판정은 공개 시점에 각자 자리에 있는 카드로 하므로 교환된 카드가 판정과 조합 칸에 쓰인다 (코어 규칙 상세 기획서 6장 예외 E7)
+    private void ApplyMagnifierChoice(Side user, bool exchange)
+    {
+        if (!exchange)
+        {
+            Log($"{DisplayNames.GetSideName(user)}가 카드를 그대로 뒀다");
+            return;
+        }
+
+        _table.SwapMatchCards();
+        _items.MarkExchanged(user);
+        Log($"{DisplayNames.GetSideName(user)}가 돋보기로 카드를 교환했다");
     }
 
     // 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
