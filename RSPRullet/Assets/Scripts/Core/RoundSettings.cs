@@ -10,7 +10,7 @@ public class RoundSettings : ScriptableObject
     [SerializeField] private int _itemCapacity;
     [SerializeField] private int _itemsPerShuffle;
 
-    // 아이템 데이터(RSP-51)가 생기기 전까지 시작 아이템은 돋보기 개수로만 둔다
+    // 라운드 시작 지급은 돋보기만 고정 개수로 준다 (아이템 세부 기획서 4-2장 지급 시점)
     [SerializeField] private int _startMagnifierCount;
 
     public int RoundNumber => _roundNumber;
