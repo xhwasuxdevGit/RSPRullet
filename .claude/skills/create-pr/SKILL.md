@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: 기능 브랜치의 변경사항을 검증하고 커밋한 뒤 main 대상으로 GitHub Pull Request를 작성할 때 사용한다.
+description: 기능 브랜치의 변경사항을 검증하고 커밋 초안을 준비한 뒤, 사용자의 커밋·Push를 확인하고 main 대상으로 GitHub Pull Request를 작성할 때 사용한다.
 disable-model-invocation: false
 ---
 
@@ -23,8 +23,8 @@ disable-model-invocation: false
 
 ## 커밋
 - `git-workflow` 스킬 4장의 유형과 형식(`[type] 변경 내용 요약`)을 적용한다.
-- 관련 파일만 명시적으로 stage하고, 변경사항을 확인한 뒤 커밋한다.
-- 사용자 요청 범위에 커밋·Push·PR 생성이 포함되는지 확인한다. 포함되지 않으면 계획만 제안한다.
+- 커밋·Push는 사용자가 직접 한다(`behavior-guidelines.md` 5장). Claude는 stage할 관련 파일 목록과 커밋 메시지 초안을 제시한다.
+- 사용자가 완료를 알리면 `git log`와 원격 브랜치로 확인한 뒤 PR로 넘어간다.
 
 ## PR
 1. GitHub CLI(`gh`) 인증 및 저장소를 확인한다.
