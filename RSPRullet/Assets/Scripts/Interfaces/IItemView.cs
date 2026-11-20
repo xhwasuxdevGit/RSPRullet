@@ -7,4 +7,7 @@ public interface IItemView
     IReadOnlyList<(Side User, ItemType Item, bool Exchanged)> ItemUses { get; }
 
     IReadOnlyList<ItemType> GetItems(Side side);
+
+    // 이번 판에 user가 item을 썼는지. 시계는 턴 플레이어만 쓰므로 HasUsedItem(턴 플레이어, 시계)로 시계를 쓴 쪽을 알 수 있다
+    bool HasUsedItem(Side user, ItemType item);
 }

@@ -985,6 +985,113 @@ public class GameFlowTests
         Assert.AreEqual(0, flow.Items.ItemUses.Count);
     }
 
+
+    // ── 시계 (아이템 세부 기획서 2-3장 시계, 5장 I6) ──
+    // 3라운드 값에 카드 셔플 지급이 모두 시계가 되도록 해, 플레이어가 첫 카드 셔플부터 시계 2개를 가지고 시작한다
+
+    private void SetRound3ClockOnlySupply()
+    {
+        SetRound3ItemValues();
+        var itemSettings = new SerializedObject(_itemSettings);
+        itemSettings.FindProperty("_coffeeWeight").intValue = 0;
+        itemSettings.FindProperty("_magnifierWeight").intValue = 0;
+        itemSettings.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 첫 번째 판에 시계를 쓰면 두 번째 판도 같은 턴 플레이어이고, 이월이 없어 다음 카드 셔플은 선 정하기를 한다
+    [Test]
+    public void ClockOnFirstMatch_KeepsTurn_AndNextShuffleDecidesFirst()
+    {
+        SetRound3ClockOnlySupply();
+        bool sawNextShuffle = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.Table.TurnPlayer != Side.Player) { continue; }
+
+            var logs = new List<string>();
+            flow.Logged += logs.Add;
+            flow.DrawCard();
+            flow.Distribute(keep: true);
+            Assert.IsTrue(flow.UseItem(ItemType.Clock), $"seed {seed}");
+            Assert.IsTrue(flow.Items.HasUsedItem(Side.Player, ItemType.Clock), $"seed {seed}");
+            flow.FinishItemPhase();
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            Assert.AreEqual(1, flow.MatchIndex, $"seed {seed}");
+            Assert.AreEqual(Side.Player, flow.Table.TurnPlayer, $"seed {seed}");
+
+            PlayTurn(flow);
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            sawNextShuffle = true;
+            Assert.IsFalse(logs.Exists(log => log.StartsWith("시계 이월")), $"seed {seed}");
+            Assert.IsTrue(logs.Exists(log => log.StartsWith("선 정하기")), $"seed {seed}");
+        }
+
+        Assert.IsTrue(sawNextShuffle, "시드 범위 안에서 다음 카드 셔플까지 이어지는 진행이 나와야 한다");
+    }
+
+    // 두 번째 판에 시계를 쓰면 다음 카드 셔플은 선 정하기 없이 시계를 쓴 쪽이 첫 번째 판 턴 플레이어다.
+    // 이월은 한 번 쓰면 사라져, 그다음 카드 셔플은 다시 선 정하기를 한다
+    [Test]
+    public void ClockOnSecondMatch_SkipsDecideFirstOnNextShuffleOnly()
+    {
+        SetRound3ClockOnlySupply();
+        bool sawCarryOver = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.Table.TurnPlayer != Side.Dealer) { continue; }
+
+            PlayTurn(flow);
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            // 두 번째 판은 턴이 넘어와 플레이어 차례다
+            flow.DrawCard();
+            flow.Distribute(keep: true);
+            Assert.IsTrue(flow.UseItem(ItemType.Clock), $"seed {seed}");
+            flow.FinishItemPhase();
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            var logs = new List<string>();
+            var records = new List<string>();
+            flow.Logged += logs.Add;
+            flow.JudgmentRecorded += records.Add;
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            sawCarryOver = true;
+            Assert.AreEqual(2, flow.ShuffleCount, $"seed {seed}");
+            Assert.AreEqual(0, flow.MatchIndex, $"seed {seed}");
+            Assert.AreEqual(Side.Player, flow.Table.TurnPlayer, $"seed {seed}");
+            Assert.IsTrue(logs.Exists(log => log.StartsWith("시계 이월로 선 정하기 생략")), $"seed {seed}");
+            Assert.AreEqual(0, records.Count, $"seed {seed}");
+
+            // 이번 카드 셔플은 시계를 쓰지 않고 끝내, 다음 카드 셔플에서 선 정하기가 다시 나오는지 본다
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            logs.Clear();
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            Assert.IsFalse(logs.Exists(log => log.StartsWith("시계 이월")), $"seed {seed}");
+            Assert.IsTrue(logs.Exists(log => log.StartsWith("선 정하기")), $"seed {seed}");
+        }
+
+        Assert.IsTrue(sawCarryOver, "시드 범위 안에서 시계 이월로 다음 카드 셔플이 시작되는 진행이 나와야 한다");
+    }
+
     private static Card GetLastSlotCard(GameFlow flow, Side side)
     {
         IReadOnlyList<Card> slots = flow.Table.GetCombinationSlots(side);

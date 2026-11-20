@@ -4,8 +4,7 @@ using UnityEngine;
 // 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고, 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다.
 // 이 클래스는 흐름(단계 진행, 입력 확인, 지급·다시 섞기·아이템 단계를 시작하는 시점, 기록·로그를 남기는 시점)만 정한다.
 // 상태 계산과 변경 알림은 상태를 가진 클래스(TableState, HealthState, ItemState)가 맡고, 이 클래스는 알림을 화면에 넘긴다.
-// 아이템 단계 안의 진행(차례, 아이템 입력, 돋보기 선택 대기)과 지급은 아이템 진행(ItemPhaseFlow)이 맡는다.
-// 시계 효과는 아직 없어 시계 이월은 항상 없다.
+// 아이템 단계 안의 진행(차례, 아이템 입력, 돋보기 선택 대기), 지급, 시계 효과와 이월은 아이템 진행(ItemPhaseFlow)이 맡는다.
 public class GameFlow
 {
     private readonly System.Random _random;
@@ -171,16 +170,23 @@ public class GameFlow
             HandShape playerStartShape = _table.GetStartCard(Side.Player).Shape;
             HandShape dealerStartShape = _table.GetStartCard(Side.Dealer).Shape;
             Log(FlowLogText.GetStartCards(playerStartShape, dealerStartShape));
-            _phaseMachine.CompleteStartCardDeal(hasClockCarryOver: false);
+
+            // 시계 이월이 있으면 시계를 쓴 쪽이 선이므로 선 정하기 없이 첫 번째 판으로 간다 (아이템 세부 기획서 5장 I6)
+            bool hasClockCarryOver = _itemPhase.ApplyClockCarryOver(_table);
+            _phaseMachine.CompleteStartCardDeal(hasClockCarryOver);
+            if (hasClockCarryOver)
+            {
+                Log($"시계 이월로 선 정하기 생략: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
+                break;
+            }
 
             isDecided = _table.DecideFirstTurnPlayer();
             Record(JudgmentRecordRules.GetFirstTurnText(playerStartShape, dealerStartShape));
             _phaseMachine.CompleteDecideFirst(isDraw: !isDecided);
-            if (!isDecided) { Log("선 정하기 무승부: 다시 섞습니다"); }
+            Log(isDecided ? $"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선" : "선 정하기 무승부: 다시 섞습니다");
         }
         while (!isDecided);
 
-        Log($"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
         BeginMatch();
     }
     
@@ -240,7 +246,7 @@ public class GameFlow
     // 판 결과 확인 뒤: 턴 교대 후 다음 판, 정산, 라운드 종료 중 하나로 간다
     private void FinishMatch()
     {
-        _table.PassTurn(clockUsed: false);
+        _table.PassTurn(_itemPhase.ApplyClockAtMatchEnd());
         _phaseMachine.CompleteShowResult(_health.IsAnyoneAtZero);
 
         switch (CurrentPhase)

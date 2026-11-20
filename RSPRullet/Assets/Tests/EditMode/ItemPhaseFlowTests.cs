@@ -56,12 +56,18 @@ public class ItemPhaseFlowTests
         _itemPhase.Logged += _logs.Add;
     }
 
-    // 시작 카드(플레이어 firstPlayerShape, 딜러 firstDealerShape)로 선을 정하고, 턴 플레이어가 뽑아 가진 뒤 아이템 단계를 시작한다
-    private void StartItemPhase(HandShape firstPlayerShape, HandShape firstDealerShape)
+    // 시작 카드(플레이어 firstPlayerShape, 딜러 firstDealerShape)가 맨 위에 있는 카드 더미로 테이블을 만든다
+    private static TableState CreateTable(HandShape firstPlayerShape, HandShape firstDealerShape)
     {
         var cards = new[] { firstPlayerShape, firstDealerShape, HandShape.Rock, HandShape.Scissors, HandShape.Paper, HandShape.Rock, HandShape.Scissors }
             .Select(shape => new Card(shape));
-        var table = new TableState(new CardDeck(cards, new KeepOrderRandom()));
+        return new TableState(new CardDeck(cards, new KeepOrderRandom()));
+    }
+
+    // 시작 카드로 선을 정하고, 턴 플레이어가 뽑아 가진 뒤 아이템 단계를 시작한다
+    private TableState StartItemPhase(HandShape firstPlayerShape, HandShape firstDealerShape)
+    {
+        TableState table = CreateTable(firstPlayerShape, firstDealerShape);
 
         _phaseMachine.CompleteRoundStart();
         _phaseMachine.CompleteCardShuffle();
@@ -75,6 +81,24 @@ public class ItemPhaseFlowTests
         table.Distribute(keep: true);
         _phaseMachine.CompleteDistribute();
 
+        _itemPhase.Start(table);
+        return table;
+    }
+
+    // 아이템 단계를 끝낸 판을 판 결과까지 진행한 뒤 다음 판의 아이템 단계를 시작한다. 턴 교대는 게임 진행처럼 시계 판단 결과로 한다
+    private void StartNextMatchItemPhase(TableState table)
+    {
+        _phaseMachine.CompleteReveal();
+        _phaseMachine.CompleteJudge();
+        table.PassTurn(_itemPhase.ApplyClockAtMatchEnd());
+        _phaseMachine.CompleteShowResult(someoneAtZeroHealth: false);
+
+        _itemPhase.BeginMatch();
+        table.BeginMatch();
+        table.DrawForTurnPlayer();
+        _phaseMachine.CompleteDraw();
+        table.Distribute(keep: true);
+        _phaseMachine.CompleteDistribute();
         _itemPhase.Start(table);
     }
 
@@ -143,6 +167,67 @@ public class ItemPhaseFlowTests
 
         Assert.AreEqual(3, itemUsedCount);
         Assert.AreEqual(GamePhase.ItemTurnPlayer, _phaseMachine.CurrentPhase);
+    }
+
+    // ── 시계 (아이템 세부 기획서 2-3장 시계, 5장 I6·I7) ──
+
+    // 시계를 쓰지 않은 판은 턴을 유지하지 않고 이월도 없다
+    [Test]
+    public void ApplyClockAtMatchEnd_WithoutClock_ReturnsFalse()
+    {
+        CreateItemPhase(Capacity, ItemType.Clock);
+        StartItemPhase(HandShape.Scissors, HandShape.Paper);
+        _itemPhase.FinishPlayerPhase();
+        _phaseMachine.CompleteReveal();
+        _phaseMachine.CompleteJudge();
+
+        Assert.IsFalse(_itemPhase.ApplyClockAtMatchEnd());
+        Assert.IsFalse(_itemPhase.ApplyClockCarryOver(CreateTable(HandShape.Rock, HandShape.Paper)));
+    }
+
+    // 첫 번째 판에 쓴 시계는 다음 판 턴만 유지하고, 다음 카드 셔플로 이월되지 않는다
+    [Test]
+    public void ClockOnFirstMatch_KeepsTurn_WithoutCarryOver()
+    {
+        CreateItemPhase(Capacity, ItemType.Clock);
+        TableState table = StartItemPhase(HandShape.Scissors, HandShape.Paper);
+        Assert.IsTrue(_itemPhase.UseItem(ItemType.Clock));
+        _itemPhase.FinishPlayerPhase();
+
+        StartNextMatchItemPhase(table);
+
+        Assert.AreEqual(1, _phaseMachine.MatchIndex);
+        Assert.AreEqual(Side.Player, table.TurnPlayer);
+        Assert.IsFalse(_itemPhase.ApplyClockCarryOver(CreateTable(HandShape.Rock, HandShape.Paper)));
+    }
+
+    // 두 번째 판에 쓴 시계는 다음 카드 셔플로 이월되어 시계를 쓴 쪽이 첫 번째 판 턴 플레이어가 되고, 한 번 쓰면 사라진다.
+    // 이월이 턴 플레이어를 실제로 바꾸는지 보려고, 새 테이블은 먼저 선 정하기로 딜러를 선으로 만들어 둔다
+    [Test]
+    public void ClockOnSecondMatch_CarriesOverOnce()
+    {
+        CreateItemPhase(Capacity, ItemType.Clock);
+        TableState table = StartItemPhase(HandShape.Paper, HandShape.Scissors);
+        Assert.AreEqual(Side.Dealer, table.TurnPlayer);
+        _itemPhase.FinishPlayerPhase();
+
+        StartNextMatchItemPhase(table);
+        Assert.AreEqual(Side.Player, table.TurnPlayer);
+        Assert.IsTrue(_itemPhase.UseItem(ItemType.Clock));
+        _itemPhase.FinishPlayerPhase();
+        _phaseMachine.CompleteReveal();
+        _phaseMachine.CompleteJudge();
+
+        Assert.IsTrue(_itemPhase.ApplyClockAtMatchEnd());
+
+        TableState nextTable = CreateTable(HandShape.Paper, HandShape.Scissors);
+        nextTable.DealStartCards();
+        nextTable.DecideFirstTurnPlayer();
+        Assert.AreEqual(Side.Dealer, nextTable.TurnPlayer);
+
+        Assert.IsTrue(_itemPhase.ApplyClockCarryOver(nextTable));
+        Assert.AreEqual(Side.Player, nextTable.TurnPlayer);
+        Assert.IsFalse(_itemPhase.ApplyClockCarryOver(CreateTable(HandShape.Paper, HandShape.Scissors)));
     }
 
     // 지급 뒤 보유 아이템 로그는 아이템이 있는 라운드에서만 남긴다
