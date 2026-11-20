@@ -1,0 +1,167 @@
+using System;
+
+// 아이템 단계에서는 아이템을 쓰는 쪽의 차례, 입력 확인, 돋보기 선택 대기, 아이템 효과 적용 호출을 정하고, 플레이어 차례에서만 입력을 기다린다.
+// 딜러가 무엇을 쓸지는 딜러 AI(DealerAI)가 정하고, 쓴 결과의 적용(돋보기 확인·교환)은 이 클래스가 양쪽 공통으로 맡는다.
+// 시계 효과와 딜러의 아이템 판단은 아직 없어, 딜러는 아이템 단계를 바로 끝낸다
+public class ItemPhaseFlow
+{
+    // 진행 단계 관리와 아이템 상태는 게임 진행이 만들어 함께 쓴다
+    private readonly PhaseMachine _phaseMachine;
+    private readonly ItemState _items;
+    private readonly RoundSettings _round;
+    private readonly ItemSettings _itemSettings;
+    private readonly Random _random;
+
+    // 테이블 상태는 카드 셔플마다 새로 만들어지므로 아이템 단계를 시작할 때 받는다
+    private TableState _table;
+
+    public event Action<string> Logged;
+
+    public event Action ItemUsed;
+
+    public bool IsWaitingForMagnifierChoice { get; private set; }
+
+    // 플레이어가 아이템 입력(UseItem, FinishPlayerPhase)을 할 수 있는지. 돋보기 선택 중에는 선택부터 끝내야 한다
+    public bool IsPlayerInputPhase => IsItemPhase() && GetItemPhaseSide() == Side.Player && !IsWaitingForMagnifierChoice;
+
+    // 두 아이템 단계가 모두 끝나 카드 공개로 갈 차례인지
+    public bool IsFinished => _phaseMachine.CurrentPhase == GamePhase.Reveal;
+
+    // 같은 시드의 난수를 넘기면 카드 셔플 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
+    public ItemPhaseFlow(PhaseMachine phaseMachine, ItemState items, RoundSettings round, ItemSettings itemSettings, Random random)
+    {
+        _phaseMachine = phaseMachine;
+        _items = items;
+        _round = round;
+        _itemSettings = itemSettings;
+        _random = random;
+    }
+
+    public void SupplyStartItems()
+    {
+        ItemSupply.SupplyStartItems(_items, _round.StartMagnifierCount);
+        LogHeldItems("라운드 시작 지급");
+    }
+
+    public void SupplyShuffleItems()
+    {
+        ItemSupply.SupplyShuffleItems(_items, _round.ItemsPerShuffle, _itemSettings, _random);
+        LogHeldItems("카드 셔플 지급");
+    }
+
+    public void BeginMatch() => _items.ClearItemUses();
+
+    public void Start(TableState table)
+    {
+        _table = table;
+        if (_items.Capacity == 0)
+        {
+            _phaseMachine.CompleteItemUse();
+            _phaseMachine.CompleteItemUse();
+            return;
+        }
+
+        Continue();
+    }
+
+    public bool UseItem(ItemType item)
+    {
+        if (!IsPlayerInputPhase || !_items.TryUseItem(Side.Player, item, _table.TurnPlayer))
+        {
+            return false;
+        }
+
+        Log($"플레이어가 {DisplayNames.GetItemName(item)}를 썼다");
+        if (item == ItemType.Magnifier)
+        {
+            PeekWithMagnifier(Side.Player);
+            IsWaitingForMagnifierChoice = true;
+        }
+
+        ItemUsed?.Invoke();
+        return true;
+    }
+
+    // 돋보기 선택 입력: 바꾼다(exchange: true)면 양쪽 이번 판 카드를 맞바꾸고, 그대로 둔다(false)면 카드는 그대로다.
+    public bool ChooseMagnifierExchange(bool exchange)
+    {
+        if (!IsWaitingForMagnifierChoice)
+        {
+            return false;
+        }
+
+        IsWaitingForMagnifierChoice = false;
+        ApplyMagnifierChoice(Side.Player, exchange);
+        ItemUsed?.Invoke();
+        return true;
+    }
+
+    // 플레이어의 [아이템 사용 완료] 또는 [아이템 없음] 입력. 상대 단계로 넘어가거나 IsFinished가 된다.
+    public bool FinishPlayerPhase()
+    {
+        if (!IsPlayerInputPhase)
+        {
+            return false;
+        }
+
+        _phaseMachine.CompleteItemUse();
+        Continue();
+        return true;
+    }
+
+    // 지금 아이템 단계가 플레이어 차례면 입력을 기다린다.
+    // 딜러 차례는 바로 끝낸다. 딜러의 아이템 판단(RSP-58)이 아직 없어, 쓸 수 있는 아이템이 있어도 쓰지 않는다
+    private void Continue()
+    {
+        while (IsItemPhase())
+        {
+            if (GetItemPhaseSide() == Side.Player)
+            {
+                return;
+            }
+
+            Log("딜러가 아이템 단계를 끝냈다");
+            _phaseMachine.CompleteItemUse();
+        }
+    }
+
+    private bool IsItemPhase() => _phaseMachine.CurrentPhase == GamePhase.ItemTurnPlayer || _phaseMachine.CurrentPhase == GamePhase.ItemOpponent;
+
+    // 지금 아이템 단계에서 아이템을 쓰는 쪽: 턴 플레이어 단계면 턴 플레이어, 상대 단계면 그 상대
+    private Side GetItemPhaseSide() => _phaseMachine.CurrentPhase == GamePhase.ItemTurnPlayer ? _table.TurnPlayer : TableState.Opponent(_table.TurnPlayer);
+
+    // 돋보기 확인: user가 상대 자리의 이번 판 카드를 알게 된다. 본 카드 내용은 쓴 사람만 안다 (아이템 세부 기획서 2-2장 돋보기).
+    private void PeekWithMagnifier(Side user)
+    {
+        Card peeked = _table.PeekOpponentMatchCard(user);
+        Side opponent = TableState.Opponent(user);
+        Log($"{DisplayNames.GetSideName(user)}가 돋보기로 {DisplayNames.GetSideName(opponent)} 카드를 확인했다: " +
+            $"{DisplayNames.GetShapeName(peeked.Shape)} ({DisplayNames.GetSideName(user)}만 앎)");
+    }
+
+    private void ApplyMagnifierChoice(Side user, bool exchange)
+    {
+        if (!exchange)
+        {
+            Log($"{DisplayNames.GetSideName(user)}가 카드를 그대로 뒀다");
+            return;
+        }
+
+        _table.SwapMatchCards();
+        _items.MarkExchanged(user);
+        Log($"{DisplayNames.GetSideName(user)}가 돋보기로 카드를 교환했다");
+    }
+
+    // 지급 뒤 양쪽 보유 아이템을 로그로 남긴다. 아이템이 없는 라운드(1라운드)는 남기지 않는다
+    private void LogHeldItems(string reason)
+    {
+        if (_items.Capacity == 0)
+        {
+            return;
+        }
+
+        Log(FlowLogText.GetHeldItems(reason, _items.GetItems(Side.Player), _items.GetItems(Side.Dealer)));
+    }
+
+    private void Log(string message) => Logged?.Invoke(message);
+}
