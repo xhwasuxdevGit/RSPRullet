@@ -771,6 +771,8 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
+            var logs = new List<string>();
+            flow.Logged += logs.Add;
             PlayOneShuffle(flow);
             if (flow.CurrentPhase != GamePhase.Settlement)
             {
@@ -783,9 +785,11 @@ public class GameFlowTests
                 continue;
             }
 
+            // 딜러는 아이템 판단으로 아이템을 쓰므로, 쓴 만큼 빼고 남은 수를 확인한다
+            int dealerUsedCount = logs.FindAll(log => log.StartsWith("딜러가 ") && log.EndsWith("를 썼다")).Count;
             Assert.AreEqual(2, flow.ShuffleCount);
             Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Player).Count);
-            Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Dealer).Count);
+            Assert.AreEqual(expectedCount - dealerUsedCount, flow.Items.GetItems(Side.Dealer).Count);
             return;
         }
 
@@ -1055,6 +1059,9 @@ public class GameFlowTests
             flow.Next();
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
+            // 딜러가 첫 번째 판에 시계를 써서 턴을 유지한 시드는 건너뛴다
+            if (flow.Table.TurnPlayer != Side.Player) { continue; }
+
             // 두 번째 판은 턴이 넘어와 플레이어 차례다
             flow.DrawCard();
             flow.Distribute(keep: true);
@@ -1077,9 +1084,12 @@ public class GameFlowTests
             Assert.IsTrue(logs.Exists(log => log.StartsWith("시계 이월로 선 정하기 생략")), $"seed {seed}");
             Assert.AreEqual(0, records.Count, $"seed {seed}");
 
-            // 이번 카드 셔플은 시계를 쓰지 않고 끝내, 다음 카드 셔플에서 선 정하기가 다시 나오는지 본다
+            // 이번 카드 셔플은 시계를 쓰지 않고 끝내, 다음 카드 셔플에서 선 정하기가 다시 나오는지 본다.
+            // 딜러가 시계를 쓴 시드는 이월이 다시 생길 수 있어 건너뛴다
+            logs.Clear();
             PlayOneShuffle(flow);
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+            if (logs.Exists(log => log.StartsWith("딜러가 시계"))) { continue; }
 
             logs.Clear();
             flow.Next();
@@ -1116,5 +1126,140 @@ public class GameFlowTests
     {
         IReadOnlyList<Card> slots = flow.Table.GetCombinationSlots(side);
         return slots[slots.Count - 1].Shape;
+    }
+
+    // ── 딜러 아이템 단계 (RSP-58, 딜러 AI 세부 기획서 4장) ──
+    // 판단 규칙 자체는 DealerAITests에서 확인하고, 여기서는 진행 중에 딜러가 고른 아이템이 실제로 적용되는지 확인한다
+
+    // 2라운드 값: 보유 한도 4, 라운드 시작 돋보기 1, 카드 셔플당 1
+    private void SetRound2ItemValues()
+    {
+        var round = new SerializedObject(_round);
+        round.FindProperty("_itemCapacity").intValue = 4;
+        round.FindProperty("_startMagnifierCount").intValue = 1;
+        round.FindProperty("_itemsPerShuffle").intValue = 1;
+        round.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 딜러가 돋보기를 쓰면 플레이어 자리 카드를 알게 되고, 교환 판단 결과가 사용 기록·카드 자리·로그에 똑같이 반영된다.
+    // 플레이어는 아이템을 쓰지 않으므로 교환 표시는 딜러가 교환했을 때만 켜진다
+    [Test]
+    public void DealerMagnifier_InFlow_AppliesExchangeChoice()
+    {
+        SetRound2ItemValues();
+        bool sawExchange = false;
+        bool sawKeep = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            var logs = new List<string>();
+            flow.Logged += logs.Add;
+            PlayTurn(flow);
+            if (!flow.Items.HasUsedItem(Side.Dealer, ItemType.Magnifier)) { continue; }
+
+            bool exchanged = false;
+            foreach ((Side User, ItemType Item, bool Exchanged) use in flow.Items.ItemUses)
+            {
+                if (use.User == Side.Dealer && use.Item == ItemType.Magnifier) { exchanged = use.Exchanged; }
+            }
+
+            Assert.IsTrue(logs.Exists(log => log.StartsWith("딜러가 돋보기로 플레이어 카드를 확인했다")), $"seed {seed}");
+            Assert.AreEqual(exchanged, logs.Contains("딜러가 돋보기로 카드를 교환했다"), $"seed {seed}");
+            Assert.AreEqual(!exchanged, logs.Contains("딜러가 카드를 그대로 뒀다"), $"seed {seed}");
+            Assert.AreEqual(exchanged, flow.Table.IsMatchCardSwapped, $"seed {seed}");
+            sawExchange |= exchanged;
+            sawKeep |= !exchanged;
+        }
+
+        Assert.IsTrue(sawExchange && sawKeep, "시드 범위 안에서 교환과 그대로가 모두 나와야 한다");
+    }
+
+    // 딜러가 커피를 쓰고 판에서 이기면 플레이어 체력이 커피 배수만큼 줄어든다 (아이템 세부 기획서 2-1장 커피)
+    [Test]
+    public void DealerCoffee_InFlow_DoublesDamageWhenDealerWins()
+    {
+        SetRound2ItemValues();
+        var itemSettings = new SerializedObject(_itemSettings);
+        itemSettings.FindProperty("_magnifierWeight").intValue = 0;
+        itemSettings.FindProperty("_clockWeight").intValue = 0;
+        itemSettings.ApplyModifiedPropertiesWithoutUndo();
+        bool sawCoffeeWin = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            int healthBefore = flow.Health.GetHealth(Side.Player);
+            PlayTurn(flow);
+            if (!flow.Items.HasUsedItem(Side.Dealer, ItemType.Coffee)) { continue; }
+
+            MatchResult dealerResult = HandShapeRules.Compare(GetLastSlotShape(flow, Side.Dealer), GetLastSlotShape(flow, Side.Player));
+            if (dealerResult != MatchResult.Win) { continue; }
+
+            sawCoffeeWin = true;
+            Assert.AreEqual(healthBefore - _rules.MatchDamage * _rules.CoffeeMultiplier, flow.Health.GetHealth(Side.Player), $"seed {seed}");
+        }
+
+        Assert.IsTrue(sawCoffeeWin, "시드 범위 안에서 딜러가 커피를 쓰고 이기는 판이 나와야 한다");
+    }
+
+    // 아이템이 있는 라운드라도 딜러에게 쓸 수 있는 아이템이 없으면 판단 없이 넘긴다 (아이템 세부 기획서 3-3장)
+    [Test]
+    public void DealerWithoutItems_InFlow_SkipsItemPhase()
+    {
+        SetItemCapacity(4);
+        GameFlow flow = StartFlow(0);
+        var logs = new List<string>();
+        flow.Logged += logs.Add;
+
+        PlayTurn(flow);
+
+        Assert.IsTrue(logs.Contains("딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다"));
+        Assert.AreEqual(0, flow.Items.ItemUses.Count);
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 딜러가 턴 플레이어로 시계를 쓰면 다음 판도 딜러 차례이고,
+    // 두 번째 판에 쓰면 다음 카드 셔플은 선 정하기 없이 딜러가 첫 번째 판 턴 플레이어다 (아이템 세부 기획서 5장 I6·I7)
+    [Test]
+    public void DealerClock_InFlow_KeepsTurnAndCarriesOver()
+    {
+        SetRound3ClockOnlySupply();
+        bool sawKeepTurn = false;
+        bool sawCarryOver = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.Table.TurnPlayer != Side.Dealer) { continue; }
+
+            PlayTurn(flow);
+            if (!flow.Items.HasUsedItem(Side.Dealer, ItemType.Clock)) { continue; }
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            sawKeepTurn = true;
+            Assert.AreEqual(1, flow.MatchIndex, $"seed {seed}");
+            Assert.AreEqual(Side.Dealer, flow.Table.TurnPlayer, $"seed {seed}");
+
+            PlayTurn(flow);
+            if (!flow.Items.HasUsedItem(Side.Dealer, ItemType.Clock)) { continue; }
+
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            var logs = new List<string>();
+            flow.Logged += logs.Add;
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            sawCarryOver = true;
+            Assert.AreEqual(0, flow.MatchIndex, $"seed {seed}");
+            Assert.AreEqual(Side.Dealer, flow.Table.TurnPlayer, $"seed {seed}");
+            Assert.IsTrue(logs.Exists(log => log.StartsWith("시계 이월로 선 정하기 생략")), $"seed {seed}");
+        }
+
+        Assert.IsTrue(sawKeepTurn && sawCarryOver, "시드 범위 안에서 딜러의 시계 턴 유지와 이월이 모두 나와야 한다");
     }
 }

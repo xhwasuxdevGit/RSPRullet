@@ -2,7 +2,9 @@ using System.Collections.Generic;
 
 // 딜러가 아는 정보 (딜러 AI 세부 기획서 1장 용어). 딜러 판단은 이 묶음만 받는다.
 // 딜러가 모르는 카드의 손 모양은 만들 때부터 담지 않아, 판단 코드가 실수로 볼 수 없다 (딜러 AI 세부 기획서 2장 치트 금지).
-// 카드 분배 판단(딜러 AI 세부 기획서 7-2장 D1)에 쓰는 정보만 담는다. 체력·사용된 아이템은 아이템 판단(RSP-58)에서 추가한다.
+// 카드 분배 판단(딜러 AI 세부 기획서 7-2장 D1)과 아이템·교환 판단(딜러 AI 세부 기획서 7-2장 D2·D3)에 함께 쓴다.
+// 보유 아이템·사용 기록·턴 플레이어처럼 항상 공개되는 정보는 담지 않고, 판단 메서드가 따로 받는다.
+// 이번 판 카드는 조합 칸의 마지막 칸이라 GetSlotShapes()로 읽는다. 돋보기 확인·교환 뒤에는 새로 만들어야 바뀐 내용이 담긴다
 public class DealerKnownInfo
 {
     private readonly List<HandShape?> _playerSlotShapes = new List<HandShape?>();
@@ -14,13 +16,14 @@ public class DealerKnownInfo
     // 이번 카드 셔플에서 몇 번째 판인지 (0: 1번째 판, 1: 2번째 판)
     public int MatchIndex { get; }
 
-    // 딜러가 뽑아서 확인 중인 카드의 손 모양. 딜러 차례에 뽑은 뒤에만 만들므로 항상 딜러가 안다
-    public HandShape DrawnShape { get; }
+    // 딜러가 뽑아서 확인 중인 카드의 손 모양. 분배 뒤(아이템 단계)에는 뽑은 카드가 없어 null이다.
+    // 분배 판단은 딜러가 뽑은 뒤에만 부르므로 값이 있다
+    public HandShape? DrawnShape { get; }
 
     public DealerKnownInfo(TableState table, int matchIndex)
     {
         MatchIndex = matchIndex;
-        DrawnShape = table.DrawnCard.Shape;
+        DrawnShape = table.DrawnCard != null ? table.DrawnCard.Shape : (HandShape?)null;
         CopyShapesKnownByDealer(table.GetCombinationSlots(Side.Player), _playerSlotShapes);
         CopyShapesKnownByDealer(table.GetCombinationSlots(Side.Dealer), _dealerSlotShapes);
 

@@ -3,12 +3,13 @@ using System;
 // 아이템 단계에서는 아이템을 쓰는 쪽의 차례, 입력 확인, 돋보기 선택 대기, 아이템 효과 적용 호출을 정하고, 플레이어 차례에서만 입력을 기다린다.
 // 딜러가 무엇을 쓸지는 딜러 AI(DealerAI)가 정하고, 쓴 결과의 적용(돋보기 확인·교환, 시계)은 이 클래스가 양쪽 공통으로 맡는다.
 // 시계 효과는 아이템 단계 밖(판이 끝날 때, 카드 셔플 시작 때)에 적용되므로, 게임 진행이 그 시점에 부른다.
-// 딜러의 아이템 판단은 아직 없어, 딜러는 아이템 단계를 바로 끝낸다
+// 딜러 차례는 입력을 기다리지 않고, 딜러 AI가 끝내기를 돌려줄 때까지 판단한 아이템을 하나씩 쓴다
 public class ItemPhaseFlow
 {
-    // 진행 단계 관리와 아이템 상태는 게임 진행이 만들어 함께 쓴다
+    // 진행 단계 관리, 아이템 상태, 딜러 AI는 게임 진행이 만들어 함께 쓴다
     private readonly PhaseMachine _phaseMachine;
     private readonly ItemState _items;
+    private readonly DealerAI _dealer;
     private readonly RoundSettings _round;
     private readonly ItemSettings _itemSettings;
     private readonly Random _random;
@@ -34,10 +35,11 @@ public class ItemPhaseFlow
     public bool IsFinished => _phaseMachine.CurrentPhase == GamePhase.Reveal;
 
     // 같은 시드의 난수를 넘기면 카드 셔플 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
-    public ItemPhaseFlow(PhaseMachine phaseMachine, ItemState items, RoundSettings round, ItemSettings itemSettings, Random random)
+    public ItemPhaseFlow(PhaseMachine phaseMachine, ItemState items, DealerAI dealer, RoundSettings round, ItemSettings itemSettings, Random random)
     {
         _phaseMachine = phaseMachine;
         _items = items;
+        _dealer = dealer;
         _round = round;
         _itemSettings = itemSettings;
         _random = random;
@@ -144,8 +146,7 @@ public class ItemPhaseFlow
         return true;
     }
 
-    // 지금 아이템 단계가 플레이어 차례면 입력을 기다린다.
-    // 딜러 차례는 바로 끝낸다. 딜러의 아이템 판단(RSP-58)이 아직 없어, 쓸 수 있는 아이템이 있어도 쓰지 않는다
+    // 지금 아이템 단계가 플레이어 차례면 입력을 기다린다. 딜러 차례는 바로 진행해 끝낸다
     private void Continue()
     {
         while (IsItemPhase())
@@ -155,9 +156,52 @@ public class ItemPhaseFlow
                 return;
             }
 
-            Log("딜러가 아이템 단계를 끝냈다");
+            PlayDealerItemPhase();
             _phaseMachine.CompleteItemUse();
         }
+    }
+
+    // 딜러 아이템 단계. 쓸 수 있는 아이템이 없으면 판단 없이 넘긴다 (아이템 세부 기획서 3-3장).
+    // 있으면 딜러 AI가 끝내기(null)를 돌려줄 때까지 하나씩 쓴다. 쓴 아이템과 돋보기로 알게 된 카드가 다음 판단에 반영되도록
+    // 판단할 때마다 딜러가 아는 정보를 새로 만든다
+    private void PlayDealerItemPhase()
+    {
+        if (!_items.HasUsableItem(Side.Dealer, _table.TurnPlayer))
+        {
+            Log("딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다");
+            return;
+        }
+
+        ItemType? item = ChooseDealerItem();
+        while (item != null && UseDealerItem(item.Value))
+        {
+            item = ChooseDealerItem();
+        }
+
+        Log("딜러가 아이템 단계를 끝냈다");
+    }
+
+    private ItemType? ChooseDealerItem()
+    {
+        return _dealer.ChooseItem(new DealerKnownInfo(_table, _phaseMachine.MatchIndex), _items, _table.TurnPlayer);
+    }
+
+    // 딜러가 고른 아이템을 쓴다. 돋보기면 확인한 뒤 바로 교환 판단까지 한다.
+    // 쓰지 못하면 false를 돌려줘, 같은 아이템을 계속 고르는 반복을 막는다
+    private bool UseDealerItem(ItemType item)
+    {
+        if (!_items.TryUseItem(Side.Dealer, item, _table.TurnPlayer)) { return false; }
+
+        Log($"딜러가 {DisplayNames.GetItemName(item)}를 썼다");
+        if (item == ItemType.Magnifier)
+        {
+            PeekWithMagnifier(Side.Dealer);
+            bool exchange = _dealer.ChooseExchange(new DealerKnownInfo(_table, _phaseMachine.MatchIndex), _items);
+            ApplyMagnifierChoice(Side.Dealer, exchange);
+        }
+
+        ItemUsed?.Invoke();
+        return true;
     }
 
     private bool IsItemPhase() => _phaseMachine.CurrentPhase == GamePhase.ItemTurnPlayer || _phaseMachine.CurrentPhase == GamePhase.ItemOpponent;
