@@ -24,6 +24,6 @@ public class TopInfoUI : MonoBehaviour
 
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
     {
-        _infoText.text = TopInfoRules.GetText(_flow.RoundNumber, _flow.ShuffleCount, next, _flow.MatchIndex, _flow.TurnPlayer);
+        _infoText.text = TopInfoRules.GetText(_flow.RoundNumber, _flow.ShuffleCount, next, _flow.MatchIndex, _flow.Table.TurnPlayer);
     }
 }

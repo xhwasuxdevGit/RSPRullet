@@ -31,7 +31,7 @@ public class HealthUI : MonoBehaviour
         _flow = _runner.Flow;
 
         // 시작 체력은 변화가 아니므로 변화량 없이 숫자만 보여 준다
-        _shownHealth = _flow.GetHealth(_side);
+        _shownHealth = _flow.Health.GetHealth(_side);
         _healthText.text = _shownHealth.ToString();
         _changeText.gameObject.SetActive(false);
         _flow.HealthChanged += OnHealthChanged;
@@ -45,7 +45,7 @@ public class HealthUI : MonoBehaviour
     // 체력 알림은 양쪽 중 한쪽만 바뀌어도 오므로, 이쪽 체력이 바뀌었는지는 직접 비교한다
     private void OnHealthChanged()
     {
-        int health = _flow.GetHealth(_side);
+        int health = _flow.Health.GetHealth(_side);
         int change = health - _shownHealth;
         if (!HealthChangeRules.IsShown(change))
         {

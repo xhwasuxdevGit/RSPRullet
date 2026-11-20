@@ -83,8 +83,8 @@ public class PhaseButtonsUI : MonoBehaviour
 
     private PhaseButton GetCurrentButtons()
     {
-        bool playerWonRound = _flow.GetHealth(Side.Player) > GameRules.MinHealth;
-        return PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.TurnPlayer,
+        bool playerWonRound = _flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
+        return PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.Table.TurnPlayer,
             hasUsableItem: _flow.HasUsableItem(Side.Player), playerWonRound: playerWonRound, isFinalRound: _runner.IsFinalRound);
     }
 

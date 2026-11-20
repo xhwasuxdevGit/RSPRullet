@@ -27,11 +27,11 @@ public class CardPoolInfoUI : MonoBehaviour
 
     private void Refresh()
     {
-        int scissors = _flow.GetPoolCardCount(HandShape.Scissors);
-        int rock = _flow.GetPoolCardCount(HandShape.Rock);
-        int paper = _flow.GetPoolCardCount(HandShape.Paper);
+        int scissors = _flow.Table.GetPoolCardCount(HandShape.Scissors);
+        int rock = _flow.Table.GetPoolCardCount(HandShape.Rock);
+        int paper = _flow.Table.GetPoolCardCount(HandShape.Paper);
 
-        _deckCountText.text = $"{_flow.MatchStartDeckCount}장 → {_flow.MatchEndDeckCount}장";
+        _deckCountText.text = $"{_flow.Table.MatchStartDeckCount}장 → {_flow.Table.MatchEndDeckCount}장";
         _shapeCountsText.text = $"{scissors}개\n{rock}개\n{paper}개";
     }
 }

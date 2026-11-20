@@ -87,14 +87,14 @@ public class GameFlowTests
         {
             GameFlow flow = StartFlow(seed);
             // 플레이어 차례면 뽑기 전에, 딜러 차례면 딜러가 뽑은 뒤 분배 전에 멈춘다. 딜러 차례일 때만 딜러를 기다리는 중이다
-            GamePhase expectedPhase = flow.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
+            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(expectedPhase, flow.CurrentPhase);
-            Assert.AreEqual(1, flow.GetCombinationSlots(Side.Player).Count);
-            Assert.AreEqual(1, flow.GetCombinationSlots(Side.Dealer).Count);
-            Assert.AreEqual(flow.TurnPlayer == Side.Dealer, flow.IsWaitingForDealer);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Dealer).Count);
+            Assert.AreEqual(flow.Table.TurnPlayer == Side.Dealer, flow.IsWaitingForDealer);
 
-            sawPlayerTurn |= flow.TurnPlayer == Side.Player;
-            sawDealerTurn |= flow.TurnPlayer == Side.Dealer;
+            sawPlayerTurn |= flow.Table.TurnPlayer == Side.Player;
+            sawDealerTurn |= flow.Table.TurnPlayer == Side.Dealer;
         }
 
         Assert.IsTrue(sawPlayerTurn && sawDealerTurn, "시드 범위 안에서 두 경우가 모두 나와야 한다");
@@ -106,19 +106,19 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Player)
+            if (flow.Table.TurnPlayer != Side.Player)
             {
                 continue;
             }
 
             Assert.IsTrue(flow.DrawCard());
             Assert.AreEqual(GamePhase.Distribute, flow.CurrentPhase);
-            Card drawn = flow.DrawnCard;
+            Card drawn = flow.Table.DrawnCard;
 
             Assert.IsTrue(flow.Distribute(keep: true));
             Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
-            Assert.AreSame(drawn, flow.GetCombinationSlots(Side.Player)[1]);
-            Assert.IsNull(flow.DrawnCard);
+            Assert.AreSame(drawn, flow.Table.GetCombinationSlots(Side.Player)[1]);
+            Assert.IsNull(flow.Table.DrawnCard);
             return;
         }
 
@@ -132,15 +132,15 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Dealer)
+            if (flow.Table.TurnPlayer != Side.Dealer)
             {
                 continue;
             }
 
             Assert.IsTrue(flow.IsWaitingForDealer);
-            Assert.IsNotNull(flow.DrawnCard);
-            Assert.IsTrue(flow.DrawnCard.KnownByDealer);
-            Assert.IsFalse(flow.DrawnCard.KnownByPlayer);
+            Assert.IsNotNull(flow.Table.DrawnCard);
+            Assert.IsTrue(flow.Table.DrawnCard.KnownByDealer);
+            Assert.IsFalse(flow.Table.DrawnCard.KnownByPlayer);
             return;
         }
 
@@ -153,20 +153,20 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Dealer)
+            if (flow.Table.TurnPlayer != Side.Dealer)
             {
                 continue;
             }
 
-            Card drawn = flow.DrawnCard;
+            Card drawn = flow.Table.DrawnCard;
             Assert.IsTrue(flow.PlayDealerTurn());
             Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
             Assert.IsFalse(flow.IsWaitingForDealer);
-            Assert.IsNull(flow.DrawnCard);
+            Assert.IsNull(flow.Table.DrawnCard);
             // 가졌으면 딜러 자리, 줬으면 플레이어 자리에 뽑은 카드가 들어간다
-            Assert.IsTrue(flow.GetCombinationSlots(Side.Dealer)[1] == drawn || flow.GetCombinationSlots(Side.Player)[1] == drawn);
-            Assert.AreEqual(2, flow.GetCombinationSlots(Side.Player).Count);
-            Assert.AreEqual(2, flow.GetCombinationSlots(Side.Dealer).Count);
+            Assert.IsTrue(flow.Table.GetCombinationSlots(Side.Dealer)[1] == drawn || flow.Table.GetCombinationSlots(Side.Player)[1] == drawn);
+            Assert.AreEqual(2, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(2, flow.Table.GetCombinationSlots(Side.Dealer).Count);
             return;
         }
 
@@ -183,9 +183,9 @@ public class GameFlowTests
             PlayOneShuffle(flow);
 
             Assert.AreEqual(GamePhase.Settlement, flow.CurrentPhase, $"seed {seed}");
-            Assert.AreEqual(3, flow.GetCombinationSlots(Side.Player).Count);
-            Assert.AreEqual(3, flow.GetCombinationSlots(Side.Dealer).Count);
-            Assert.AreEqual(0, flow.RemainingDeckCount);
+            Assert.AreEqual(3, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(3, flow.Table.GetCombinationSlots(Side.Dealer).Count);
+            Assert.AreEqual(0, flow.Table.RemainingDeckCount);
         }
     }
 
@@ -195,13 +195,13 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            Side firstTurnPlayer = flow.TurnPlayer;
+            Side firstTurnPlayer = flow.Table.TurnPlayer;
 
             PlayTurn(flow);
             flow.Next();
 
             Assert.AreEqual(1, flow.MatchIndex);
-            Assert.AreNotEqual(firstTurnPlayer, flow.TurnPlayer, $"seed {seed}");
+            Assert.AreNotEqual(firstTurnPlayer, flow.Table.TurnPlayer, $"seed {seed}");
         }
     }
 
@@ -224,8 +224,8 @@ public class GameFlowTests
             Assert.AreEqual(0, flow.MatchIndex);
             Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
             Assert.AreNotEqual(
-                flow.GetCombinationSlots(Side.Player)[0].Shape,
-                flow.GetCombinationSlots(Side.Dealer)[0].Shape);
+                flow.Table.GetCombinationSlots(Side.Player)[0].Shape,
+                flow.Table.GetCombinationSlots(Side.Dealer)[0].Shape);
             return;
         }
 
@@ -243,7 +243,7 @@ public class GameFlowTests
         {
             GameFlow flow = StartFlow(seed);
             PlayTurn(flow);
-            bool someoneAtZero = flow.GetHealth(Side.Player) == 0 || flow.GetHealth(Side.Dealer) == 0;
+            bool someoneAtZero = flow.Health.GetHealth(Side.Player) == 0 || flow.Health.GetHealth(Side.Dealer) == 0;
             if (!someoneAtZero)
             {
                 continue;
@@ -253,7 +253,7 @@ public class GameFlowTests
 
             // 두 번째 판과 정산 없이 끝나므로 더미에 3장이 남는다
             Assert.AreEqual(GamePhase.RoundEnd, flow.CurrentPhase);
-            Assert.AreEqual(3, flow.RemainingDeckCount);
+            Assert.AreEqual(3, flow.Table.RemainingDeckCount);
             return;
         }
 
@@ -274,10 +274,10 @@ public class GameFlowTests
             }
 
             // 플레이어가 선이면 뽑기 전, 딜러가 선이면 딜러가 뽑은 뒤 분배 전에 멈춘다
-            GamePhase expectedPhase = flow.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
+            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(0, flow.MatchIndex);
             Assert.AreEqual(expectedPhase, flow.CurrentPhase);
-            Assert.AreEqual(1, flow.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Player).Count);
             return;
         }
 
@@ -351,8 +351,8 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            Assert.AreEqual(5, flow.MatchStartDeckCount);
-            Assert.AreEqual(3, flow.MatchEndDeckCount);
+            Assert.AreEqual(5, flow.Table.MatchStartDeckCount);
+            Assert.AreEqual(3, flow.Table.MatchEndDeckCount);
 
             PlayTurn(flow);
             flow.Next();
@@ -361,8 +361,8 @@ public class GameFlowTests
                 continue;
             }
 
-            Assert.AreEqual(3, flow.MatchStartDeckCount);
-            Assert.AreEqual(1, flow.MatchEndDeckCount);
+            Assert.AreEqual(3, flow.Table.MatchStartDeckCount);
+            Assert.AreEqual(1, flow.Table.MatchEndDeckCount);
 
             PlayTurn(flow);
             flow.Next();
@@ -371,8 +371,8 @@ public class GameFlowTests
                 continue;
             }
 
-            Assert.AreEqual(3, flow.MatchStartDeckCount);
-            Assert.AreEqual(1, flow.MatchEndDeckCount);
+            Assert.AreEqual(3, flow.Table.MatchStartDeckCount);
+            Assert.AreEqual(1, flow.Table.MatchEndDeckCount);
             return;
         }
 
@@ -399,9 +399,9 @@ public class GameFlowTests
     {
         return new[]
         {
-            flow.GetPoolCardCount(HandShape.Scissors),
-            flow.GetPoolCardCount(HandShape.Rock),
-            flow.GetPoolCardCount(HandShape.Paper)
+            flow.Table.GetPoolCardCount(HandShape.Scissors),
+            flow.Table.GetPoolCardCount(HandShape.Rock),
+            flow.Table.GetPoolCardCount(HandShape.Paper)
         };
     }
 
@@ -411,7 +411,7 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Player)
+            if (flow.Table.TurnPlayer != Side.Player)
             {
                 // 딜러를 기다리는 중에는 플레이어의 뽑기·분배·다음 입력을 받지 않는다
                 Assert.IsFalse(flow.DrawCard());
@@ -496,7 +496,7 @@ public class GameFlowTests
             {
                 phases.Add(next);
                 // 알림을 받는 시점에 화면이 읽는 상태를 오류 없이 읽을 수 있어야 한다
-                Assert.DoesNotThrow(() => _ = flow.TurnPlayer);
+                Assert.DoesNotThrow(() => _ = flow.Table.TurnPlayer);
             };
 
             flow.StartRound();
@@ -512,7 +512,7 @@ public class GameFlowTests
             }
 
             // 첫 번째 판 결과 확인 뒤 두 번째 판 뽑기로 넘어간다. 딜러 차례면 딜러가 바로 뽑아 분배 단계까지 간다
-            GamePhase[] expected = flow.TurnPlayer == Side.Player
+            GamePhase[] expected = flow.Table.TurnPlayer == Side.Player
                 ? new[] { GamePhase.Draw }
                 : new[] { GamePhase.Draw, GamePhase.Distribute };
             CollectionAssert.AreEqual(expected, phases, $"seed {seed}");
@@ -526,7 +526,7 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Player)
+            if (flow.Table.TurnPlayer != Side.Player)
             {
                 continue;
             }
@@ -587,11 +587,11 @@ public class GameFlowTests
             int count = 0;
             flow.HealthChanged += () => count++;
 
-            int playerBefore = flow.GetHealth(Side.Player);
-            int dealerBefore = flow.GetHealth(Side.Dealer);
+            int playerBefore = flow.Health.GetHealth(Side.Player);
+            int dealerBefore = flow.Health.GetHealth(Side.Dealer);
             PlayTurn(flow);
 
-            bool changed = flow.GetHealth(Side.Player) != playerBefore || flow.GetHealth(Side.Dealer) != dealerBefore;
+            bool changed = flow.Health.GetHealth(Side.Player) != playerBefore || flow.Health.GetHealth(Side.Dealer) != dealerBefore;
             Assert.AreEqual(changed ? 1 : 0, count, $"seed {seed}");
             sawChange |= changed;
             sawNoChange |= !changed;
@@ -618,7 +618,7 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer == turnPlayer)
+            if (flow.Table.TurnPlayer == turnPlayer)
             {
                 return flow;
             }
@@ -683,7 +683,7 @@ public class GameFlowTests
         Assert.IsFalse(flow.HasUsableItem(Side.Player));
         Assert.IsFalse(flow.UseItem(ItemType.Coffee));
         Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
-        Assert.AreEqual(0, flow.ItemUses.Count);
+        Assert.AreEqual(0, flow.Items.ItemUses.Count);
     }
 
     // 플레이어 아이템 단계가 아니면 아이템 입력을 무시한다
@@ -728,8 +728,8 @@ public class GameFlowTests
 
             foreach (Side side in new[] { Side.Player, Side.Dealer })
             {
-                Assert.AreEqual(expectedCount, flow.GetItems(side).Count, $"seed {seed} {side}");
-                Assert.AreEqual(ItemType.Magnifier, flow.GetItems(side)[0], $"seed {seed} {side}");
+                Assert.AreEqual(expectedCount, flow.Items.GetItems(side).Count, $"seed {seed} {side}");
+                Assert.AreEqual(ItemType.Magnifier, flow.Items.GetItems(side)[0], $"seed {seed} {side}");
             }
         }
     }
@@ -753,8 +753,8 @@ public class GameFlowTests
                 continue;
             }
 
-            Assert.AreEqual(expectedCount, flow.GetItems(Side.Player).Count);
-            Assert.AreEqual(expectedCount, flow.GetItems(Side.Dealer).Count);
+            Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Player).Count);
+            Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Dealer).Count);
             return;
         }
 
@@ -784,8 +784,8 @@ public class GameFlowTests
             }
 
             Assert.AreEqual(2, flow.ShuffleCount);
-            Assert.AreEqual(expectedCount, flow.GetItems(Side.Player).Count);
-            Assert.AreEqual(expectedCount, flow.GetItems(Side.Dealer).Count);
+            Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Player).Count);
+            Assert.AreEqual(expectedCount, flow.Items.GetItems(Side.Dealer).Count);
             return;
         }
 
@@ -803,8 +803,8 @@ public class GameFlowTests
             GameFlow first = StartFlow(seed);
             GameFlow second = StartFlow(seed);
 
-            CollectionAssert.AreEqual(first.GetItems(Side.Player), second.GetItems(Side.Player), $"seed {seed}");
-            CollectionAssert.AreEqual(first.GetItems(Side.Dealer), second.GetItems(Side.Dealer), $"seed {seed}");
+            CollectionAssert.AreEqual(first.Items.GetItems(Side.Player), second.Items.GetItems(Side.Player), $"seed {seed}");
+            CollectionAssert.AreEqual(first.Items.GetItems(Side.Dealer), second.Items.GetItems(Side.Dealer), $"seed {seed}");
         }
     }
 
@@ -834,19 +834,19 @@ public class GameFlowTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
-            if (flow.TurnPlayer != Side.Player)
+            if (flow.Table.TurnPlayer != Side.Player)
             {
                 continue;
             }
 
             flow.DrawCard();
             flow.Distribute(keep: true);
-            int coffeeCountBefore = CountItem(flow.GetItems(Side.Player), ItemType.Coffee);
-            int playerBefore = flow.GetHealth(Side.Player);
-            int dealerBefore = flow.GetHealth(Side.Dealer);
+            int coffeeCountBefore = CountItem(flow.Items.GetItems(Side.Player), ItemType.Coffee);
+            int playerBefore = flow.Health.GetHealth(Side.Player);
+            int dealerBefore = flow.Health.GetHealth(Side.Dealer);
 
             Assert.IsTrue(flow.UseItem(ItemType.Coffee), $"seed {seed}");
-            Assert.AreEqual(coffeeCountBefore - 1, CountItem(flow.GetItems(Side.Player), ItemType.Coffee), $"seed {seed}");
+            Assert.AreEqual(coffeeCountBefore - 1, CountItem(flow.Items.GetItems(Side.Player), ItemType.Coffee), $"seed {seed}");
             flow.FinishItemPhase();
             Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase, $"seed {seed}");
 
@@ -854,8 +854,8 @@ public class GameFlowTests
             HandShape playerShape = GetLastSlotShape(flow, Side.Player);
             HandShape dealerShape = GetLastSlotShape(flow, Side.Dealer);
             MatchResult playerResult = HandShapeRules.Compare(playerShape, dealerShape);
-            int playerLoss = playerBefore - flow.GetHealth(Side.Player);
-            int dealerLoss = dealerBefore - flow.GetHealth(Side.Dealer);
+            int playerLoss = playerBefore - flow.Health.GetHealth(Side.Player);
+            int dealerLoss = dealerBefore - flow.Health.GetHealth(Side.Dealer);
 
             switch (playerResult)
             {
@@ -880,7 +880,7 @@ public class GameFlowTests
             flow.Next();
             if (flow.CurrentPhase != GamePhase.RoundEnd && flow.CurrentPhase != GamePhase.Settlement)
             {
-                Assert.AreEqual(0, flow.ItemUses.Count, $"seed {seed}");
+                Assert.AreEqual(0, flow.Items.ItemUses.Count, $"seed {seed}");
             }
         }
 
@@ -937,24 +937,24 @@ public class GameFlowTests
 
         Assert.AreEqual(2, itemUsedCount);
         Assert.IsFalse(flow.IsWaitingForMagnifierChoice);
-        Assert.IsTrue(flow.IsMatchCardSwapped);
+        Assert.IsTrue(flow.Table.IsMatchCardSwapped);
         Assert.AreSame(dealerCardBefore, GetLastSlotCard(flow, Side.Player));
         Assert.AreSame(playerCardBefore, GetLastSlotCard(flow, Side.Dealer));
         // 교환 뒤 플레이어 자리 카드(원래 딜러 자리 카드)는 플레이어만 안다 (코어 규칙 상세 기획서 5-3장 경우 A)
         Assert.IsTrue(dealerCardBefore.KnownByPlayer);
         Assert.IsFalse(dealerCardBefore.KnownByDealer);
-        Assert.AreEqual((Side.Player, ItemType.Magnifier, true), flow.ItemUses[0]);
+        Assert.AreEqual((Side.Player, ItemType.Magnifier, true), flow.Items.ItemUses[0]);
 
-        int playerBefore = flow.GetHealth(Side.Player);
-        int dealerBefore = flow.GetHealth(Side.Dealer);
+        int playerBefore = flow.Health.GetHealth(Side.Player);
+        int dealerBefore = flow.Health.GetHealth(Side.Dealer);
         Assert.IsTrue(flow.FinishItemPhase());
         Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
 
         MatchResult playerResult = HandShapeRules.Compare(dealerCardBefore.Shape, playerCardBefore.Shape);
         int expectedPlayerLoss = playerResult == MatchResult.Lose ? Mathf.Min(_rules.MatchDamage, playerBefore) : 0;
         int expectedDealerLoss = playerResult == MatchResult.Win ? Mathf.Min(_rules.MatchDamage, dealerBefore) : 0;
-        Assert.AreEqual(expectedPlayerLoss, playerBefore - flow.GetHealth(Side.Player));
-        Assert.AreEqual(expectedDealerLoss, dealerBefore - flow.GetHealth(Side.Dealer));
+        Assert.AreEqual(expectedPlayerLoss, playerBefore - flow.Health.GetHealth(Side.Player));
+        Assert.AreEqual(expectedDealerLoss, dealerBefore - flow.Health.GetHealth(Side.Dealer));
     }
 
     // 그대로 둔다: 카드는 그대로이고 "돋보기 사용 / 교환 안 함"이 기록된다. 다시 아이템 단계 입력을 받는다
@@ -968,9 +968,9 @@ public class GameFlowTests
         Assert.IsTrue(flow.ChooseMagnifierExchange(exchange: false));
 
         Assert.IsFalse(flow.IsWaitingForMagnifierChoice);
-        Assert.IsFalse(flow.IsMatchCardSwapped);
+        Assert.IsFalse(flow.Table.IsMatchCardSwapped);
         Assert.AreSame(playerCardBefore, GetLastSlotCard(flow, Side.Player));
-        Assert.AreEqual((Side.Player, ItemType.Magnifier, false), flow.ItemUses[0]);
+        Assert.AreEqual((Side.Player, ItemType.Magnifier, false), flow.Items.ItemUses[0]);
         Assert.IsTrue(flow.FinishItemPhase());
     }
 
@@ -981,13 +981,13 @@ public class GameFlowTests
         GameFlow flow = StartPlayerItemPhaseWithMagnifier();
 
         Assert.IsFalse(flow.ChooseMagnifierExchange(exchange: true));
-        Assert.IsFalse(flow.IsMatchCardSwapped);
-        Assert.AreEqual(0, flow.ItemUses.Count);
+        Assert.IsFalse(flow.Table.IsMatchCardSwapped);
+        Assert.AreEqual(0, flow.Items.ItemUses.Count);
     }
 
     private static Card GetLastSlotCard(GameFlow flow, Side side)
     {
-        IReadOnlyList<Card> slots = flow.GetCombinationSlots(side);
+        IReadOnlyList<Card> slots = flow.Table.GetCombinationSlots(side);
         return slots[slots.Count - 1];
     }
 
@@ -1007,7 +1007,7 @@ public class GameFlowTests
 
     private static HandShape GetLastSlotShape(GameFlow flow, Side side)
     {
-        IReadOnlyList<Card> slots = flow.GetCombinationSlots(side);
+        IReadOnlyList<Card> slots = flow.Table.GetCombinationSlots(side);
         return slots[slots.Count - 1].Shape;
     }
 }

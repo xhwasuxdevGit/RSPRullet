@@ -44,14 +44,14 @@ public class TableCardsUI : MonoBehaviour
     {
         GamePhase phase = _flow.CurrentPhase;
 
-        ShowCard(_drawnCard, _flow.DrawnCard, phase);
+        ShowCard(_drawnCard, _flow.Table.DrawnCard, phase);
 
         bool hasSlotCards = CardFaceRules.HasSlotCards(phase);
         ShowCard(_playerSlot, hasSlotCards ? GetLastCard(Side.Player) : null, phase);
         ShowCard(_dealerSlot, hasSlotCards ? GetLastCard(Side.Dealer) : null, phase);
 
         // 교환 여부는 분배 직후와 지금 카드 위치를 비교한 값이다. 교환하면 카드 변경 알림이 와서 다시 그린다
-        _swapMarker.SetActive(CardFaceRules.ShowsSwapMarker(_flow.IsMatchCardSwapped, phase));
+        _swapMarker.SetActive(CardFaceRules.ShowsSwapMarker(_flow.Table.IsMatchCardSwapped, phase));
     }
 
     private void ShowCard(CardView view, Card card, GamePhase phase)
@@ -69,7 +69,7 @@ public class TableCardsUI : MonoBehaviour
     // 카드 슬롯에 카드가 있는 동안 슬롯 카드는 카드 조합 칸의 마지막 카드다 (CardFaceRules.HasSlotCards)
     private Card GetLastCard(Side side)
     {
-        IReadOnlyList<Card> slots = _flow.GetCombinationSlots(side);
+        IReadOnlyList<Card> slots = _flow.Table.GetCombinationSlots(side);
         return slots[slots.Count - 1];
     }
 

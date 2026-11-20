@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 // 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고, 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다.
@@ -42,25 +41,20 @@ public class GameFlow
 
     public GamePhase CurrentPhase => _phaseMachine.CurrentPhase;
     public int MatchIndex => _phaseMachine.MatchIndex;
-    public Side TurnPlayer => _table.TurnPlayer;
-    public Card DrawnCard => _table.DrawnCard;
-    public int RemainingDeckCount => _table.RemainingDeckCount;
 
     public int RoundNumber { get; }
     public int ShuffleCount { get; private set; }
-    
-    public int MatchStartDeckCount => _table.MatchStartDeckCount;
-    public int MatchEndDeckCount => _table.MatchEndDeckCount;
-    
-    public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && TurnPlayer == Side.Dealer;
 
-    // 이번 판에 양쪽이 쓴 아이템과 돋보기 뒤 교환 여부
-    public IReadOnlyList<(Side User, ItemType Item, bool Exchanged)> ItemUses => _items.ItemUses;
+    // 화면은 상태를 읽기 전용 인터페이스로만 읽는다. 상태를 바꾸는 것은 이 클래스의 입력과 진행뿐이다.
+    // 테이블은 카드 셔플마다 새로 만들므로, 화면은 Table을 저장해 두지 않고 쓸 때마다 읽는다
+    public ITableView Table => _table;
+    public IHealthView Health => _health;
+    public IItemView Items => _items;
+
+    public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && _table.TurnPlayer == Side.Dealer;
 
     // 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 그대로 둘지 고르는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
     public bool IsWaitingForMagnifierChoice => _itemPhase.IsWaitingForMagnifierChoice;
-    
-    public bool IsMatchCardSwapped => _table.IsMatchCardSwapped;
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택·아이템 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, ItemSettings itemSettings, System.Random random)
@@ -80,26 +74,14 @@ public class GameFlow
         _itemPhase.Logged += Log;
     }
 
-    public int GetHealth(Side side) => _health.GetHealth(side);
-
-    // 보유 아이템은 양쪽에 항상 공개된다. 화면은 읽기만 하고, 바꾸는 것은 이 클래스의 입력과 지급뿐이다
-    public IReadOnlyList<ItemType> GetItems(Side side) => _items.GetItems(side);
-
-    // [아이템 사용 완료]·[아이템 없음] 버튼 전환에 쓴다
-    public bool HasUsableItem(Side side) => _items.HasUsableItem(side, TurnPlayer);
-
-    public IReadOnlyList<Card> GetCombinationSlots(Side side) => _table.GetCombinationSlots(side);
-
-    // 이번 카드 셔플의 카드풀 구성. 카드 셔플 동안 바뀌지 않는다
-    public int GetPoolCardCount(HandShape shape) => _table.GetPoolCardCount(shape);
+    // [아이템 사용 완료]·[아이템 없음] 버튼 전환에 쓴다. 턴 플레이어가 필요해 아이템 상태와 테이블을 함께 아는 이 클래스에 둔다
+    public bool HasUsableItem(Side side) => _items.HasUsableItem(side, _table.TurnPlayer);
 
     // 라운드 시작 → 첫 번째 카드 셔플 → 첫 번째 판의 입력 대기 지점까지 진행한다
     public bool StartRound()
     {
-        if (!_phaseMachine.CompleteRoundStart())
-        {
-            return false;
-        }
+        // 본문이 한 줄인 if는 한 줄로 쓴다. 중괄호는 남겨, 줄을 더할 때 if 밖으로 빠지지 않게 한다
+        if (!_phaseMachine.CompleteRoundStart()) { return false; }
 
         Log($"라운드 시작: 양쪽 체력 {_health.GetHealth(Side.Player)}");
         
@@ -110,10 +92,7 @@ public class GameFlow
     
     public bool DrawCard()
     {
-        if (CurrentPhase != GamePhase.Draw || TurnPlayer != Side.Player)
-        {
-            return Ignore(nameof(DrawCard));
-        }
+        if (CurrentPhase != GamePhase.Draw || _table.TurnPlayer != Side.Player) { return Ignore(nameof(DrawCard)); }
 
         _table.DrawForTurnPlayer();
         _phaseMachine.CompleteDraw();
@@ -123,10 +102,7 @@ public class GameFlow
     
     public bool Distribute(bool keep)
     {
-        if (CurrentPhase != GamePhase.Distribute || TurnPlayer != Side.Player)
-        {
-            return Ignore(nameof(Distribute));
-        }
+        if (CurrentPhase != GamePhase.Distribute || _table.TurnPlayer != Side.Player) { return Ignore(nameof(Distribute)); }
 
         _table.Distribute(keep);
         Log(keep ? "플레이어가 카드를 가졌다" : "플레이어가 카드를 딜러에게 줬다");
@@ -141,10 +117,7 @@ public class GameFlow
     
     public bool FinishItemPhase()
     {
-        if (!_itemPhase.FinishPlayerPhase())
-        {
-            return Ignore(nameof(FinishItemPhase));
-        }
+        if (!_itemPhase.FinishPlayerPhase()) { return Ignore(nameof(FinishItemPhase)); }
 
         ResolveMatchIfItemPhaseFinished();
         return true;
@@ -153,10 +126,7 @@ public class GameFlow
     // 딜러 차례 판에서 고민 중 대기가 끝나면 딜러가 이미 뽑아 둔 카드를 분배한 뒤 아이템 단계로 간다
     public bool PlayDealerTurn()
     {
-        if (!IsWaitingForDealer)
-        {
-            return Ignore(nameof(PlayDealerTurn));
-        }
+        if (!IsWaitingForDealer) { return Ignore(nameof(PlayDealerTurn)); }
 
         _dealer.TryDistribute(_table, MatchIndex);
 
@@ -175,20 +145,12 @@ public class GameFlow
             return true;
         }
 
-        if (CurrentPhase == GamePhase.Settlement)
-        {
-            _phaseMachine.CompleteSettlement(_isRoundOverAfterSettlement);
-            if (CurrentPhase == GamePhase.RoundEnd)
-            {
-                LogRoundEnd();
-                return true;
-            }
+        if (CurrentPhase != GamePhase.Settlement) { return Ignore(nameof(Next)); }
 
-            StartShuffle();
-            return true;
-        }
-
-        return Ignore(nameof(Next));
+        _phaseMachine.CompleteSettlement(_isRoundOverAfterSettlement);
+        if (CurrentPhase == GamePhase.RoundEnd) { LogRoundEnd(); }
+        else { StartShuffle(); }
+        return true;
     }
 
     // 카드풀 생성 → 시작 카드 → 선 정하기. 선 정하기에서 비기면 카드풀부터 다시 만든다
@@ -214,23 +176,17 @@ public class GameFlow
             isDecided = _table.DecideFirstTurnPlayer();
             Record(JudgmentRecordRules.GetFirstTurnText(playerStartShape, dealerStartShape));
             _phaseMachine.CompleteDecideFirst(isDraw: !isDecided);
-            if (!isDecided)
-            {
-                Log("선 정하기 무승부: 다시 섞습니다");
-            }
+            if (!isDecided) { Log("선 정하기 무승부: 다시 섞습니다"); }
         }
         while (!isDecided);
 
-        Log($"선 정하기: {DisplayNames.GetSideName(TurnPlayer)} 선");
+        Log($"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
         BeginMatch();
     }
     
     private void CreateTable()
     {
-        if (_table != null)
-        {
-            _table.Changed -= OnTableChanged;
-        }
+        if (_table != null) { _table.Changed -= OnTableChanged; }
 
         _table = new TableState(new CardDeck(CardPool.Create(_random), _random));
         _table.Changed += OnTableChanged;
@@ -243,11 +199,8 @@ public class GameFlow
         // 딜러 차례면 아래에서 바로 뽑으므로 뽑기 전에 판 카드 수를 기록한다
         _table.BeginMatch();
         DeckChanged?.Invoke();
-        Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(TurnPlayer)} 차례");
-        if (TurnPlayer != Side.Dealer)
-        {
-            return;
-        }
+        Log($"{MatchIndex + 1}번째 판: {DisplayNames.GetSideName(_table.TurnPlayer)} 차례");
+        if (_table.TurnPlayer != Side.Dealer) { return; }
 
         _table.DrawForTurnPlayer();
         _phaseMachine.CompleteDraw();
@@ -262,10 +215,7 @@ public class GameFlow
 
     private void ResolveMatchIfItemPhaseFinished()
     {
-        if (_itemPhase.IsFinished)
-        {
-            ResolveMatch();
-        }
+        if (_itemPhase.IsFinished) { ResolveMatch(); }
     }
 
     // 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
@@ -331,10 +281,7 @@ public class GameFlow
 
     private void OnPhaseMachineChanged(GamePhase previous, GamePhase next)
     {
-        if (next == GamePhase.CardShuffle)
-        {
-            return;
-        }
+        if (next == GamePhase.CardShuffle) { return; }
 
         PhaseChanged?.Invoke(previous, next);
     }

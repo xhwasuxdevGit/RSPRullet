@@ -4,7 +4,7 @@ using System.Collections.Generic;
 // 양쪽 보유 칸과 이번 판의 아이템 사용 기록.
 // "쓸 수 있는 아이템" 판정에 보유 칸과 사용 기록이 모두 필요해 한 클래스에 둔다.
 // 사용 기록(어떤 아이템을 썼는지, 돋보기 뒤 교환했는지)은 양쪽에 공개되는 정보다
-public class ItemState
+public class ItemState : IItemView
 {
     private readonly ItemSlots _playerSlots;
     private readonly ItemSlots _dealerSlots;
