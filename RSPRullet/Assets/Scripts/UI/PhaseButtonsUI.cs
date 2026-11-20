@@ -2,8 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 하단 HUD의 단계별 버튼과 입력 잠금 (UI·UX 화면 흐름 세부 기획서 6-1장 단계별 버튼, 6-2장 입력 잠금).
-// 진행 흐름(GameFlow)의 단계 변경 알림을 받을 때만 켤 버튼을 다시 정한다.
-// 버튼을 고르는 턴 플레이어·체력은 단계가 바뀔 때 함께 정해지므로(라운드 종료의 체력은 판정·정산에서 먼저 바뀜) 단계 알림만 받는다.
+// 진행 흐름(GameFlow)의 단계 변경 알림과 아이템 사용 알림을 받을 때만 켤 버튼을 다시 정한다.
+// 버튼을 고르는 턴 플레이어·체력은 단계가 바뀔 때 함께 정해지므로(라운드 종료의 체력은 판정·정산에서 먼저 바뀜) 단계 알림으로 충분하다.
+// 아이템을 쓰거나 돋보기 선택을 마쳐도 단계는 그대로라서, 돋보기 선택 버튼과 [아이템 사용 완료]·[아이템 없음] 전환은 아이템 사용 알림으로 다시 정한다
 public class PhaseButtonsUI : MonoBehaviour
 {
     [SerializeField] private GameFlowRunner _runner;
@@ -18,6 +19,8 @@ public class PhaseButtonsUI : MonoBehaviour
     [SerializeField] private Button _nextRoundButton;
     [SerializeField] private Button _takeMedicineButton;
     [SerializeField] private Button _restartButton;
+    [SerializeField] private Button _exchangeButton;
+    [SerializeField] private Button _keepCardsButton;
 
     [Header("입력 잠금 중 함께 잠그는 버튼")]
     [SerializeField] private Button _ruleButton;
@@ -30,6 +33,7 @@ public class PhaseButtonsUI : MonoBehaviour
     {
         _flow = _runner.Flow;
         _flow.PhaseChanged += OnPhaseChanged;
+        _flow.ItemUsed += RefreshButtons;
         _phaseButtons = new[]
         {
             (_drawCardButton, PhaseButton.DrawCard),
@@ -40,7 +44,9 @@ public class PhaseButtonsUI : MonoBehaviour
             (_nextShuffleButton, PhaseButton.NextShuffle),
             (_nextRoundButton, PhaseButton.NextRound),
             (_takeMedicineButton, PhaseButton.TakeMedicine),
-            (_restartButton, PhaseButton.Restart)
+            (_restartButton, PhaseButton.Restart),
+            (_exchangeButton, PhaseButton.Exchange),
+            (_keepCardsButton, PhaseButton.KeepCards)
         };
 
         _drawCardButton.onClick.AddListener(OnDrawCard);
@@ -50,6 +56,8 @@ public class PhaseButtonsUI : MonoBehaviour
         _itemDoneButton.onClick.AddListener(OnFinishItemPhase);
         _noItemButton.onClick.AddListener(OnFinishItemPhase);
         _nextRoundButton.onClick.AddListener(OnNextRound);
+        _exchangeButton.onClick.AddListener(OnExchange);
+        _keepCardsButton.onClick.AddListener(OnKeepCards);
 
         // 응급약 복용과 다시하기는 동작을 연결하기 전까지 보이기만 하고 눌리지 않는다
         ButtonLock.SetLocked(_takeMedicineButton, true);
@@ -59,6 +67,7 @@ public class PhaseButtonsUI : MonoBehaviour
     private void OnDestroy()
     {
         _flow.PhaseChanged -= OnPhaseChanged;
+        _flow.ItemUsed -= RefreshButtons;
         _drawCardButton.onClick.RemoveListener(OnDrawCard);
         _keepButton.onClick.RemoveListener(OnKeep);
         _giveButton.onClick.RemoveListener(OnGive);
@@ -66,9 +75,16 @@ public class PhaseButtonsUI : MonoBehaviour
         _itemDoneButton.onClick.RemoveListener(OnFinishItemPhase);
         _noItemButton.onClick.RemoveListener(OnFinishItemPhase);
         _nextRoundButton.onClick.RemoveListener(OnNextRound);
+        _exchangeButton.onClick.RemoveListener(OnExchange);
+        _keepCardsButton.onClick.RemoveListener(OnKeepCards);
     }
 
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
+    {
+        RefreshButtons();
+    }
+
+    private void RefreshButtons()
     {
         PhaseButton buttons = GetCurrentButtons();
         foreach ((Button button, PhaseButton flag) in _phaseButtons)
@@ -85,7 +101,8 @@ public class PhaseButtonsUI : MonoBehaviour
     {
         bool playerWonRound = _flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
         return PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.Table.TurnPlayer,
-            hasUsableItem: _flow.HasUsableItem(Side.Player), playerWonRound: playerWonRound, isFinalRound: _runner.IsFinalRound);
+            hasUsableItem: _flow.HasUsableItem(Side.Player), isWaitingForMagnifierChoice: _flow.IsWaitingForMagnifierChoice,
+            playerWonRound: playerWonRound, isFinalRound: _runner.IsFinalRound);
     }
 
     private void OnDrawCard()
@@ -116,5 +133,15 @@ public class PhaseButtonsUI : MonoBehaviour
     private void OnFinishItemPhase()
     {
         _flow.FinishItemPhase();
+    }
+
+    private void OnExchange()
+    {
+        _flow.ChooseMagnifierExchange(exchange: true);
+    }
+
+    private void OnKeepCards()
+    {
+        _flow.ChooseMagnifierExchange(exchange: false);
     }
 }

@@ -26,9 +26,22 @@ public class PhaseButtonRulesTests
     [TestCase(GamePhase.ItemOpponent, Side.Player, true, PhaseButton.None)]
     public void ItemPhase_PlayerSeesItemDoneOrNoItem(GamePhase phase, Side turnPlayer, bool hasUsableItem, PhaseButton expected)
     {
-        PhaseButton buttons = PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem, playerWonRound: false, isFinalRound: false);
+        PhaseButton buttons = PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem,
+            isWaitingForMagnifierChoice: false, playerWonRound: false, isFinalRound: false);
 
         Assert.AreEqual(expected, buttons);
+    }
+
+    // 돋보기 선택 중에는 쓸 수 있는 아이템이 남아 있어도 바꾼다·그대로 둔다만 켠다
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Player, true)]
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Player, false)]
+    [TestCase(GamePhase.ItemOpponent, Side.Dealer, true)]
+    public void MagnifierChoice_ShowsExchangeAndKeepCardsOnly(GamePhase phase, Side turnPlayer, bool hasUsableItem)
+    {
+        PhaseButton buttons = PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem,
+            isWaitingForMagnifierChoice: true, playerWonRound: false, isFinalRound: false);
+
+        Assert.AreEqual(PhaseButton.Exchange | PhaseButton.KeepCards, buttons);
     }
 
     [Test]
@@ -43,7 +56,8 @@ public class PhaseButtonRulesTests
     [TestCase(false, true, PhaseButton.Restart)]
     public void RoundEnd_ShowsButtonByResultAndRound(bool playerWonRound, bool isFinalRound, PhaseButton expected)
     {
-        PhaseButton buttons = PhaseButtonRules.GetButtons(GamePhase.RoundEnd, Side.Player, hasUsableItem: false, playerWonRound, isFinalRound);
+        PhaseButton buttons = PhaseButtonRules.GetButtons(GamePhase.RoundEnd, Side.Player, hasUsableItem: false,
+            isWaitingForMagnifierChoice: false, playerWonRound, isFinalRound);
 
         Assert.AreEqual(expected, buttons);
     }
@@ -71,6 +85,7 @@ public class PhaseButtonRulesTests
 
     private static PhaseButton GetButtons(GamePhase phase, Side turnPlayer)
     {
-        return PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem: false, playerWonRound: false, isFinalRound: false);
+        return PhaseButtonRules.GetButtons(phase, turnPlayer, hasUsableItem: false,
+            isWaitingForMagnifierChoice: false, playerWonRound: false, isFinalRound: false);
     }
 }
