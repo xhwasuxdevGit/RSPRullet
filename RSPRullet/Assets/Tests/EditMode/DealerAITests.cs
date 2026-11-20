@@ -161,6 +161,55 @@ public class DealerAITests
         Assert.AreEqual(1, poolCounts.Count(count => count == GameRules.TripleShapeCardCount));
     }
 
+    // 1번째 판: 플레이어가 턴 플레이어로 보를 뽑아 가진 아이템 단계 (플레이어 [가위, 보], 딜러 [바위, 가위]).
+    // 플레이어 자리의 보는 플레이어만, 딜러 자리의 가위는 아무도 모른다
+    private static TableState MakeOrderedFirstMatchPlayerKeptTable()
+    {
+        var table = MakeOrderedTable(S, R, P, S, R, P, R);
+        table.SetFirstTurnPlayerByClock(Side.Player);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        return table;
+    }
+
+    [Test]
+    public void DealerKnownInfo_AfterDistribute_HasNoDrawnShapeAndHidesMatchCards()
+    {
+        var table = MakeOrderedFirstMatchPlayerKeptTable();
+
+        var knownInfo = new DealerKnownInfo(table, matchIndex: 0);
+
+        Assert.IsNull(knownInfo.DrawnShape);
+        Assert.IsNull(knownInfo.GetSlotShapes(Side.Player)[1]);
+        Assert.IsNull(knownInfo.GetSlotShapes(Side.Dealer)[1]);
+    }
+
+    [Test]
+    public void DealerKnownInfo_AfterDealerPeek_KnowsPlayerMatchCard()
+    {
+        var table = MakeOrderedFirstMatchPlayerKeptTable();
+        table.PeekOpponentMatchCard(Side.Dealer);
+
+        var knownInfo = new DealerKnownInfo(table, matchIndex: 0);
+
+        Assert.AreEqual(P, knownInfo.GetSlotShapes(Side.Player)[1]);
+        Assert.IsNull(knownInfo.GetSlotShapes(Side.Dealer)[1]);
+    }
+
+    // 교환하면 아는 사람 정보가 카드를 따라가므로, 딜러가 본 보는 딜러 자리로, 모르는 가위는 플레이어 자리로 간다
+    [Test]
+    public void DealerKnownInfo_AfterDealerPeekAndSwap_KnownCardMovesToDealerSlot()
+    {
+        var table = MakeOrderedFirstMatchPlayerKeptTable();
+        table.PeekOpponentMatchCard(Side.Dealer);
+        table.SwapMatchCards();
+
+        var knownInfo = new DealerKnownInfo(table, matchIndex: 0);
+
+        Assert.AreEqual(P, knownInfo.GetSlotShapes(Side.Dealer)[1]);
+        Assert.IsNull(knownInfo.GetSlotShapes(Side.Player)[1]);
+    }
+
     // 더미 순서: 플레이어 시작 카드 → 딜러 시작 카드 → 이후 뽑는 순서. 넣은 7장이 그대로 카드풀이 된다
     private static TableState MakeOrderedTable(params HandShape[] order)
     {
@@ -435,5 +484,152 @@ public class DealerAITests
 
         Assert.Contains(true, keptResults);
         Assert.Contains(false, keptResults);
+    }
+
+    // 딜러 보유 칸에 items를 넣은 아이템 상태 (보유 한도는 2라운드 값)
+    private static ItemState MakeDealerItems(params ItemType[] items)
+    {
+        var itemState = new ItemState(4);
+        foreach (ItemType item in items)
+        {
+            itemState.TryAddItem(Side.Dealer, item);
+        }
+        return itemState;
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 3을 가진다로 분배한 아이템 단계: 딜러 [보, 보, 보], 플레이어 [바위, 바위, 가위(딜러 모름)]
+    private static TableState MakeExample4Table()
+    {
+        var table = MakeOrderedSecondMatchDealerDrawnTable(Side.Dealer, R, P, P, R, P, S, S);
+        table.Distribute(keep: true);
+        return table;
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 4: 상대 카드를 모르므로 돋보기부터 쓴다
+    [Test]
+    public void ChooseItem_Example4_UsesMagnifierFirst()
+    {
+        var table = MakeExample4Table();
+        var items = MakeDealerItems(ItemType.Magnifier, ItemType.Coffee);
+
+        Assert.AreEqual(ItemType.Magnifier, MakeDealer(1).ChooseItem(new DealerKnownInfo(table, 1), items, Side.Dealer));
+    }
+
+    // 딜러 AI 세부 기획서 6장 예시 4: 돋보기로 가위 확인. 교환 전 +2(패배 −1, 트리플 +3), 교환 후 +1(승리) → 교환 안 함.
+    // 커피는 이길 경우가 0이라 쓰지 않고 아이템 단계를 끝낸다
+    [Test]
+    public void ChooseExchange_Example4_KeepsTripleAndSkipsCoffee()
+    {
+        var table = MakeExample4Table();
+        var items = MakeDealerItems(ItemType.Magnifier, ItemType.Coffee);
+        var dealer = MakeDealer(1);
+        items.TryUseItem(Side.Dealer, ItemType.Magnifier, Side.Dealer);
+        table.PeekOpponentMatchCard(Side.Dealer);
+        var knownInfo = new DealerKnownInfo(table, 1);
+
+        Assert.IsFalse(dealer.ChooseExchange(knownInfo, items));
+        Assert.IsNull(dealer.ChooseItem(knownInfo, items, Side.Dealer));
+    }
+
+    // 1번째 판, 딜러가 뽑은 보를 플레이어에게 줘서 자기 카드(가위)를 모른다. 카드풀 구성(바위 3 / 가위 2 / 보 2)으로 세면
+    // 교환 전(딜러 ? vs 보) 승 2·패 3 → −1, 교환 후(딜러 보 vs ?) 승 3·패 2 → +1 이라 교환한다 (딜러 AI 세부 기획서 3-1장)
+    [Test]
+    public void ChooseExchange_FirstMatch_OwnCardUnknown_CountsByPoolComposition()
+    {
+        var table = MakeOrderedTable(R, P, P, S, R, R, S);
+        table.SetFirstTurnPlayerByClock(Side.Dealer);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: false);
+        var knownInfo = new DealerKnownInfo(table, 0);
+        var dealer = MakeDealer(1);
+
+        Assert.IsTrue(dealer.ChooseExchange(knownInfo, MakeDealerItems()));
+        Assert.AreEqual(ItemType.Magnifier, dealer.ChooseItem(knownInfo, MakeDealerItems(ItemType.Magnifier), Side.Dealer));
+    }
+
+    // 2번째 판, 플레이어 턴. 딜러 [보, 가위, ?] / 플레이어 [바위, 보, 바위(돋보기로 확인)], 딜러가 모르는 카드 보 1 · 가위 1.
+    // 교환 전 합 0, 교환 후 합 +1(딜러 공격형 풀세트 확정) → 교환한다. 판 승패만 보면 둘 다 0이라 교환하지 않는 상황이다
+    [Test]
+    public void ChooseExchange_SecondMatch_ComparesExpectedHealthChange()
+    {
+        var table = MakeOrderedTable(R, P, S, P, R, P, S);
+        table.SetFirstTurnPlayerByClock(Side.Dealer);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.RevealMatchCards();
+        table.PassTurn(clockUsed: false);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.PeekOpponentMatchCard(Side.Dealer);
+        var knownInfo = new DealerKnownInfo(table, 1);
+
+        Assert.AreEqual(1, knownInfo.GetUnknownCardCount(P));
+        Assert.AreEqual(1, knownInfo.GetUnknownCardCount(S));
+        Assert.IsTrue(MakeDealer(1).ChooseExchange(knownInfo, MakeDealerItems()));
+    }
+
+    // 2번째 판, 플레이어 턴, 양쪽 카드를 모두 모름. 모르는 카드가 바위 · 가위 · 보 1장씩이라 비길 수 없다.
+    // 딜러 자리 후보를 정한 뒤 남은 2장으로 상대 자리를 채우면 3/6 = 50% → 커피 사용 기준(50% 이상)을 만족한다
+    [Test]
+    public void ChooseItem_SecondMatch_BothUnknownAllDifferent_UsesCoffeeAtHalf()
+    {
+        var table = MakeOrderedTable(R, P, R, S, P, S, R);
+        table.SetFirstTurnPlayerByClock(Side.Dealer);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        table.RevealMatchCards();
+        table.PassTurn(clockUsed: false);
+        table.DrawForTurnPlayer();
+        table.Distribute(keep: true);
+        var knownInfo = new DealerKnownInfo(table, 1);
+
+        Assert.AreEqual(ItemType.Coffee, MakeDealer(1).ChooseItem(knownInfo, MakeDealerItems(ItemType.Coffee), Side.Player));
+    }
+
+    // 1번째 판, 양쪽 카드를 모두 모름. 카드풀 구성 바위 3 / 가위 2 / 보 2로 세면 42가지 중 이기는 경우 16가지(약 38%) → 쓰지 않는다
+    [Test]
+    public void ChooseItem_FirstMatch_BothUnknown_DoesNotUseCoffee()
+    {
+        var table = MakeOrderedFirstMatchPlayerKeptTable();
+
+        Assert.IsNull(MakeDealer(1).ChooseItem(new DealerKnownInfo(table, 0), MakeDealerItems(ItemType.Coffee), Side.Player));
+    }
+
+    // 시계 사용 확률(기본 0.85) 경계: 난수가 확률보다 작으면 쓴다
+    [TestCase(0.8, true)]
+    [TestCase(0.9, false)]
+    public void ChooseItem_DealerTurn_UsesClockByChance(double randomValue, bool expectedUse)
+    {
+        var table = MakeOrderedFirstMatchDealerDrawnTable(R, P, P, S, R, R, S);
+        table.Distribute(keep: true);
+        var knownInfo = new DealerKnownInfo(table, 0);
+
+        ItemType? item = MakeDealer(new FixedDoubleRandom(randomValue)).ChooseItem(knownInfo, MakeDealerItems(ItemType.Clock), Side.Dealer);
+
+        Assert.AreEqual(expectedUse, item == ItemType.Clock);
+    }
+
+    // 검토 순서(돋보기 → 시계 → 커피)는 한 번만 지난다: 커피를 쓴 뒤에는 앞 순서인 시계를 다시 보지 않는다
+    [Test]
+    public void ChooseItem_AfterCoffee_DoesNotReviewClockAgain()
+    {
+        var table = MakeOrderedFirstMatchDealerDrawnTable(R, P, P, S, R, R, S);
+        table.Distribute(keep: true);
+        var items = MakeDealerItems(ItemType.Clock, ItemType.Coffee);
+        items.TryUseItem(Side.Dealer, ItemType.Coffee, Side.Dealer);
+
+        Assert.IsNull(MakeDealer(new FixedDoubleRandom(0.0)).ChooseItem(new DealerKnownInfo(table, 0), items, Side.Dealer));
+    }
+
+    // 쓸 수 있는 아이템이 없으면 끝낸다: 보유 칸이 비었거나, 시계뿐인데 턴 플레이어가 아니다
+    [Test]
+    public void ChooseItem_NoUsableItem_ReturnsNull()
+    {
+        var table = MakeOrderedFirstMatchPlayerKeptTable();
+        var knownInfo = new DealerKnownInfo(table, 0);
+        var dealer = MakeDealer(new FixedDoubleRandom(0.0));
+
+        Assert.IsNull(dealer.ChooseItem(knownInfo, MakeDealerItems(), Side.Player));
+        Assert.IsNull(dealer.ChooseItem(knownInfo, MakeDealerItems(ItemType.Clock), Side.Player));
     }
 }

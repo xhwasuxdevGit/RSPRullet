@@ -63,7 +63,7 @@ public class GameFlow
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
         _items = new ItemState(round.ItemCapacity);
-        _itemPhase = new ItemPhaseFlow(_phaseMachine, _items, round, itemSettings, random);
+        _itemPhase = new ItemPhaseFlow(_phaseMachine, _items, _dealer, round, itemSettings, random);
 
         // 진행 단계 관리, 체력 상태, 아이템 상태, 아이템 진행은 이 클래스가 만들어 함께 사라지므로 구독을 해제하지 않는다
         _phaseMachine.PhaseChanged += OnPhaseMachineChanged;

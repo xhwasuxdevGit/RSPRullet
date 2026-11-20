@@ -1,11 +1,12 @@
 using UnityEngine;
 
 // 딜러 AI (딜러 AI 세부 기획서). 딜러의 판단을 이 클래스 한 곳에 모은다 (딜러 AI 세부 기획서 2장 공통 원칙).
-// 지금은 카드 분배 판단(딜러 AI 세부 기획서 7-2장 D1)만 있다. 아이템·교환 판단은 이후 이슈에서 이 클래스에 더한다.
-// 딜러는 선택만 하고, 카드를 어느 자리에 놓는지는 테이블 상태가 처리한다.
+// 카드 분배 판단(딜러 AI 세부 기획서 7-2장 D1)은 이 클래스가, 아이템·교환 판단(D2·D3)은 아이템 판단(DealerItemJudge)이 맡는다.
+// 바깥에서는 딜러 판단을 모두 이 클래스로 부른다. 카드를 세는 방법과 HP 변화 계산은 DealerEstimateRules를 함께 쓴다.
+// 딜러는 선택만 하고, 카드를 어느 자리에 놓는지는 테이블 상태가, 아이템을 쓴 결과의 적용은 아이템 진행이 처리한다.
 public class DealerAI
 {
-    private const int FirstMatchIndex = 0;
+    private const int FirstMatchIndex = DealerEstimateRules.FirstMatchIndex;
 
     // 반대로 갈 근거가 없는 상황에서 규칙상 결론을 따를 확률 (딜러 AI 세부 기획서 3-5장 항상 따름)
     private const float AlwaysFollowRate = 1f;
@@ -16,6 +17,7 @@ public class DealerAI
     private readonly RuleSettings _rules;
     private readonly DealerSettings _dealerSettings;
     private readonly System.Random _random;
+    private readonly DealerItemJudge _itemJudge;
 
     // 판정·정산 대미지와 회복량은 실제 진행과 같은 값(RuleSettings)으로 계산한다.
     // 무작위 단계의 확률(규칙 준수율·강함 보정률)은 딜러 설정(DealerSettings)에서 읽는다.
@@ -25,6 +27,7 @@ public class DealerAI
         _rules = rules;
         _dealerSettings = dealerSettings;
         _random = random;
+        _itemJudge = new DealerItemJudge(rules, dealerSettings, random);
     }
 
     // 딜러가 턴 플레이어이고 뽑은 카드가 있을 때만 분배한다. 그 외에는 아무것도 하지 않고 false를 돌려준다.
@@ -43,6 +46,18 @@ public class DealerAI
         return true;
     }
 
+    // 아이템 판단 (딜러 AI 세부 기획서 7-2장 D2). 다음에 쓸 아이템, 더 쓰지 않으면 null(아이템 끝내기)
+    public ItemType? ChooseItem(DealerKnownInfo knownInfo, ItemState items, Side turnPlayer)
+    {
+        return _itemJudge.ChooseItem(knownInfo, items, turnPlayer);
+    }
+
+    // 교환 판단 (딜러 AI 세부 기획서 7-2장 D3). 돋보기로 상대 카드를 안 뒤에 부르며, 교환하면 true
+    public bool ChooseExchange(DealerKnownInfo knownInfo, ItemState items)
+    {
+        return _itemJudge.ChooseExchange(knownInfo, items);
+    }
+
     // ② 이번 판 승패 판단 규칙 (딜러 AI 세부 기획서 3-2장).
     // 뽑은 카드가 이기는 손모양의 수와 지는 손모양의 수를 비교해 이번 판을 이길 가능성이 높은 쪽을 돌려준다.
     // 비기는 손모양은 세지 않고, 두 수가 같으면 상관없음이다
@@ -53,13 +68,13 @@ public class DealerAI
 
         foreach (HandShape shape in System.Enum.GetValues(typeof(HandShape)))
         {
-            if (HandShapeRules.Beats(knownInfo.DrawnShape, shape))
+            if (HandShapeRules.Beats(knownInfo.DrawnShape.Value, shape))
             {
-                winCount += GetThisMatchCardCount(knownInfo, shape);
+                winCount += DealerEstimateRules.GetThisMatchCardCount(knownInfo, shape);
             }
-            else if (HandShapeRules.Beats(shape, knownInfo.DrawnShape))
+            else if (HandShapeRules.Beats(shape, knownInfo.DrawnShape.Value))
             {
-                loseCount += GetThisMatchCardCount(knownInfo, shape);
+                loseCount += DealerEstimateRules.GetThisMatchCardCount(knownInfo, shape);
             }
         }
 
@@ -143,7 +158,7 @@ public class DealerAI
     }
 
     // 예상 HP 변화 = 판정 시 HP 변화 + 정산 시 HP 변화 (딜러 AI 세부 기획서 3-4장 2번째 판 표).
-    // 커피 대미지 배수는 아이템 연결이 이루어지면 반영한다.
+    // 분배는 그 판의 아이템 단계보다 먼저라 이번 판에 쓴 커피가 없으므로, 기본 대미지로 계산한다.
     private int SumExpectedChange(DealerKnownInfo knownInfo, bool keep)
     {
         return SumJudgmentChange(knownInfo, keep) + SumSettlementChange(knownInfo, keep);
@@ -157,37 +172,12 @@ public class DealerAI
 
         foreach (HandShape unknownShape in System.Enum.GetValues(typeof(HandShape)))
         {
-            HandShape dealerShape = keep ? knownInfo.DrawnShape : unknownShape;
-            HandShape playerShape = keep ? unknownShape : knownInfo.DrawnShape;
-            sum += GetJudgmentValue(HandShapeRules.Compare(dealerShape, playerShape)) * knownInfo.GetUnknownCardCount(unknownShape);
+            HandShape dealerShape = keep ? knownInfo.DrawnShape.Value : unknownShape;
+            HandShape playerShape = keep ? unknownShape : knownInfo.DrawnShape.Value;
+            sum += DealerEstimateRules.GetJudgmentValue(_rules, HandShapeRules.Compare(dealerShape, playerShape)) * knownInfo.GetUnknownCardCount(unknownShape);
         }
 
         return sum;
-    }
-
-    // 판정 한 번이 딜러 기준 HP 차이를 얼마나 벌리는지 (딜러 승리 +, 비김 0, 딜러 패배 −)
-    private int GetJudgmentValue(MatchResult dealerResult)
-    {
-        switch (dealerResult)
-        {
-            case MatchResult.Win:
-                return _rules.MatchDamage;
-            case MatchResult.Lose:
-                return -_rules.MatchDamage;
-            default:
-                return 0;
-        }
-    }
-
-    // ② 이번 판 판단에서 판단 근거를 위해 남은 카드를 어떻게 계산할지 정한다. (딜러 AI 세부 기획서 3-1장).
-    // 1번째 판: 딜러는 셔플 직후처럼 3장인 손모양 3장·나머지 손모양 2장씩이 그대로 남아 있다고 여긴다.
-    // - > "뽑은 카드가 3장인 손모양을 이기면 가진다, 지면 준다"와 같다
-    // 2번째 판: 공개된 카드와 딜러가 직접 본 카드(뽑은 카드 등)를 빼고, 정체를 모르는 카드만 남았다고 보고 비교한다
-    private static int GetThisMatchCardCount(DealerKnownInfo knownInfo, HandShape shape)
-    {
-        return knownInfo.MatchIndex == FirstMatchIndex
-            ? knownInfo.GetPoolCardCount(shape)
-            : knownInfo.GetUnknownCardCount(shape);
     }
 
     // 1번째 판: 시작 카드가 3장인 손모양인지와 뽑은 카드가 시작 카드와 같은지로 정한다.
@@ -196,7 +186,7 @@ public class DealerAI
     {
         HandShape startShape = knownInfo.GetSlotShapes(Side.Dealer)[0].Value;
         bool isStartTripleShape = knownInfo.GetPoolCardCount(startShape) == GameRules.TripleShapeCardCount;
-        bool isSameAsStart = knownInfo.DrawnShape == startShape;
+        bool isSameAsStart = knownInfo.DrawnShape.Value == startShape;
 
         if (isStartTripleShape)
         {
@@ -227,37 +217,15 @@ public class DealerAI
     // ③ 충돌 해결의 예상 HP 변화(SumExpectedChange)도 이 값을 쓴다 (딜러 AI 세부 기획서 3-4장)
     private int SumSettlementChange(DealerKnownInfo knownInfo, bool keep)
     {
-        var dealerSlots = knownInfo.GetSlotShapes(Side.Dealer);
-        var playerSlots = knownInfo.GetSlotShapes(Side.Player);
         int sum = 0;
 
         foreach (HandShape unknownShape in System.Enum.GetValues(typeof(HandShape)))
         {
-            HandShape dealerThird = keep ? knownInfo.DrawnShape : unknownShape;
-            HandShape playerThird = keep ? unknownShape : knownInfo.DrawnShape;
-            CombinationType dealerCombination = CombinationRules.Judge(dealerSlots[0].Value, dealerSlots[1].Value, dealerThird);
-            CombinationType playerCombination = CombinationRules.Judge(playerSlots[0].Value, playerSlots[1].Value, playerThird);
-
-            int changePerCard = GetSettlementValue(dealerCombination) - GetSettlementValue(playerCombination);
-            sum += changePerCard * knownInfo.GetUnknownCardCount(unknownShape);
+            HandShape dealerThird = keep ? knownInfo.DrawnShape.Value : unknownShape;
+            HandShape playerThird = keep ? unknownShape : knownInfo.DrawnShape.Value;
+            sum += DealerEstimateRules.GetSettlementChange(_rules, knownInfo, dealerThird, playerThird) * knownInfo.GetUnknownCardCount(unknownShape);
         }
 
         return sum;
-    }
-
-    // 조합 하나가 정산에서 상대와의 HP 차이를 얼마나 벌리는지 (트리플·공격형은 상대 대미지, 회복형은 자신 회복)
-    private int GetSettlementValue(CombinationType combination)
-    {
-        switch (combination)
-        {
-            case CombinationType.Triple:
-                return _rules.TripleDamage;
-            case CombinationType.AttackFullSet:
-                return _rules.AttackFullSetDamage;
-            case CombinationType.HealFullSet:
-                return _rules.HealFullSetAmount;
-            default:
-                return 0;
-        }
     }
 }

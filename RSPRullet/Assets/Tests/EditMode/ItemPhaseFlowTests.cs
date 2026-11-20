@@ -12,6 +12,8 @@ public class ItemPhaseFlowTests
 
     private RoundSettings _round;
     private ItemSettings _itemSettings;
+    private RuleSettings _rules;
+    private DealerSettings _dealerSettings;
     private PhaseMachine _phaseMachine;
     private ItemState _items;
     private ItemPhaseFlow _itemPhase;
@@ -32,6 +34,8 @@ public class ItemPhaseFlowTests
     {
         _round = ScriptableObject.CreateInstance<RoundSettings>();
         _itemSettings = ScriptableObject.CreateInstance<ItemSettings>();
+        _rules = ScriptableObject.CreateInstance<RuleSettings>();
+        _dealerSettings = ScriptableObject.CreateInstance<DealerSettings>();
         _logs.Clear();
     }
 
@@ -40,6 +44,8 @@ public class ItemPhaseFlowTests
     {
         Object.DestroyImmediate(_round);
         Object.DestroyImmediate(_itemSettings);
+        Object.DestroyImmediate(_rules);
+        Object.DestroyImmediate(_dealerSettings);
     }
 
     // 보유 한도 capacity인 아이템 진행을 만들고, 플레이어에게 playerItems를 준다
@@ -52,7 +58,8 @@ public class ItemPhaseFlowTests
             _items.TryAddItem(Side.Player, item);
         }
 
-        _itemPhase = new ItemPhaseFlow(_phaseMachine, _items, _round, _itemSettings, new System.Random(0));
+        var random = new System.Random(0);
+        _itemPhase = new ItemPhaseFlow(_phaseMachine, _items, new DealerAI(_rules, _dealerSettings, random), _round, _itemSettings, random);
         _itemPhase.Logged += _logs.Add;
     }
 
@@ -67,8 +74,11 @@ public class ItemPhaseFlowTests
     // 시작 카드로 선을 정하고, 턴 플레이어가 뽑아 가진 뒤 아이템 단계를 시작한다
     private TableState StartItemPhase(HandShape firstPlayerShape, HandShape firstDealerShape)
     {
-        TableState table = CreateTable(firstPlayerShape, firstDealerShape);
+        return StartItemPhase(CreateTable(firstPlayerShape, firstDealerShape));
+    }
 
+    private TableState StartItemPhase(TableState table)
+    {
         _phaseMachine.CompleteRoundStart();
         _phaseMachine.CompleteCardShuffle();
         table.DealStartCards();
@@ -114,7 +124,8 @@ public class ItemPhaseFlowTests
         Assert.AreEqual(GamePhase.Reveal, _phaseMachine.CurrentPhase);
     }
 
-    // 플레이어가 턴 플레이어면 턴 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 끝난다
+    // 플레이어가 턴 플레이어면 턴 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 끝난다.
+    // 딜러에게 쓸 수 있는 아이템이 없으면 판단 없이 넘긴다 (아이템 세부 기획서 3-3장)
     [Test]
     public void PlayerTurn_WaitsAtTurnPlayerStep_ThenDealerStepPasses()
     {
@@ -128,7 +139,63 @@ public class ItemPhaseFlowTests
         Assert.IsTrue(_itemPhase.FinishPlayerPhase());
 
         Assert.IsTrue(_itemPhase.IsFinished);
-        CollectionAssert.Contains(_logs, "딜러가 아이템 단계를 끝냈다");
+        CollectionAssert.Contains(_logs, "딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다");
+    }
+
+    // ── 딜러 아이템 단계 (딜러 AI 세부 기획서 4장) ──
+
+    // 딜러가 턴 플레이어로 바위를 가졌고 플레이어 자리 카드(가위)를 모른다. 돋보기로 가위를 확인하고,
+    // 교환하면 지므로 그대로 둔 뒤, 이길 것을 알아 커피를 쓴다. 끝내면 상대인 플레이어 단계에서 입력을 기다린다
+    [Test]
+    public void DealerTurn_UsesMagnifierThenCoffee_ThenWaitsForPlayer()
+    {
+        CreateItemPhase(Capacity);
+        _items.TryAddItem(Side.Dealer, ItemType.Magnifier);
+        _items.TryAddItem(Side.Dealer, ItemType.Coffee);
+        int itemUsedCount = 0;
+        _itemPhase.ItemUsed += () => itemUsedCount++;
+
+        StartItemPhase(HandShape.Paper, HandShape.Scissors);
+
+        var expectedUses = new List<(Side, ItemType, bool)>
+        {
+            (Side.Dealer, ItemType.Magnifier, false),
+            (Side.Dealer, ItemType.Coffee, false),
+        };
+        CollectionAssert.AreEqual(expectedUses, _items.ItemUses);
+        Assert.AreEqual(2, itemUsedCount);
+        Assert.AreEqual(GamePhase.ItemOpponent, _phaseMachine.CurrentPhase);
+        Assert.IsTrue(_itemPhase.IsPlayerInputPhase);
+    }
+
+    // 아이템 세부 기획서 5장 I1·I2: 플레이어(턴 플레이어)가 돋보기로 교환한 뒤 딜러가 돋보기로 다시 교환하면
+    // 카드가 원래 자리로 돌아와 교환 표시가 꺼진다.
+    // 카드풀 바위 3 / 가위 2 / 보 2. 플레이어 가위 vs 딜러 보로 플레이어가 선, 바위를 뽑아 가지고 딜러 자리에는 보가 들어간다.
+    // 교환 뒤 딜러는 자기 카드를 모르므로 카드풀 구성으로 센다: 교환 전(? vs 보) 승 2·패 3, 교환 후(보 vs ?) 승 3·패 2 → 다시 교환
+    [Test]
+    public void PlayerExchange_ThenDealerExchangesBack_ClearsSwapMark()
+    {
+        CreateItemPhase(Capacity, ItemType.Magnifier);
+        _items.TryAddItem(Side.Dealer, ItemType.Magnifier);
+        var cards = new[] { HandShape.Scissors, HandShape.Paper, HandShape.Rock, HandShape.Paper, HandShape.Rock, HandShape.Rock, HandShape.Scissors }
+            .Select(shape => new Card(shape));
+        TableState table = StartItemPhase(new TableState(new CardDeck(cards, new KeepOrderRandom())));
+
+        Assert.IsTrue(_itemPhase.UseItem(ItemType.Magnifier));
+        Assert.IsTrue(_itemPhase.ChooseMagnifierExchange(exchange: true));
+        Assert.IsTrue(table.IsMatchCardSwapped);
+
+        Assert.IsTrue(_itemPhase.FinishPlayerPhase());
+
+        Assert.IsFalse(table.IsMatchCardSwapped);
+        Assert.AreEqual(HandShape.Rock, table.GetMatchCard(Side.Player).Shape);
+        var expectedUses = new List<(Side, ItemType, bool)>
+        {
+            (Side.Player, ItemType.Magnifier, true),
+            (Side.Dealer, ItemType.Magnifier, true),
+        };
+        CollectionAssert.AreEqual(expectedUses, _items.ItemUses);
+        Assert.IsTrue(_itemPhase.IsFinished);
     }
 
     // 딜러가 턴 플레이어면 딜러 단계가 먼저 지나고, 상대인 플레이어 단계에서 입력을 기다린다
