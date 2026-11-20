@@ -58,7 +58,7 @@ public class CombinationSlotsUI : MonoBehaviour
 
     private void Refresh()
     {
-        IReadOnlyList<Card> slots = _flow.GetCombinationSlots(_side);
+        IReadOnlyList<Card> slots = _flow.Table.GetCombinationSlots(_side);
         int shownCount = CombinationSlotRules.GetShownCount(slots.Count, _flow.CurrentPhase);
 
         for (int i = 0; i < _slotCards.Length; i++)

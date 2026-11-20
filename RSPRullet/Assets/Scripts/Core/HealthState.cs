@@ -3,7 +3,7 @@ using UnityEngine;
 
 // 라운드 동안의 양쪽 체력. 한 판의 판정(코어 규칙 상세 기획서 3장, 7-2장 F6)과 정산(4-3장, F8)으로만 바뀐다.
 // 카드 셔플이 바뀌어도 체력은 이어지므로, 카드 셔플마다 새로 만드는 TableState와 따로 두고 라운드마다 새로 만든다.
-public class HealthState
+public class HealthState : IHealthView
 {
     private readonly RuleSettings _rules;
     private int _playerHealth;

@@ -6,7 +6,7 @@ using UnityEngine;
 // 시작 카드와 선 정하기(7-2장 F4), 뽑기·분배·턴 교대(F5), 카드별 정보 공개 상태(F9),
 // 돋보기의 상대 카드 확인과 판 카드 교환(아이템 세부 기획서 7-2장 I-F7)을 담당한다.
 // 선 정하기에서 비기면 카드풀부터 다시 만들어야 하므로, 카드 셔플마다 새로 만든다.
-public class TableState
+public class TableState : ITableView
 {
     // 한 판에 더미에서 나가는 카드: 뽑은 카드 1장 + 남은 자리에 들어가는 더미의 다음 카드 1장 (Distribute)
     private const int CardsPerMatch = 2;

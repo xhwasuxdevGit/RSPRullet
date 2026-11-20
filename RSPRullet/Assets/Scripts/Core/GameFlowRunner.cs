@@ -50,7 +50,7 @@ public class GameFlowRunner : MonoBehaviour
     // (라운드와 게임 진행 세부 기획서 8-2장 R-F5 다음 라운드)
     public bool StartNextRound()
     {
-        bool playerWonRound = Flow.GetHealth(Side.Player) > GameRules.MinHealth;
+        bool playerWonRound = Flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
         if (Flow.CurrentPhase != GamePhase.RoundEnd || !playerWonRound)
         {
             return false;
