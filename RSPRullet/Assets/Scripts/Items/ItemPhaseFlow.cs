@@ -1,8 +1,9 @@
 using System;
 
 // 아이템 단계에서는 아이템을 쓰는 쪽의 차례, 입력 확인, 돋보기 선택 대기, 아이템 효과 적용 호출을 정하고, 플레이어 차례에서만 입력을 기다린다.
-// 딜러가 무엇을 쓸지는 딜러 AI(DealerAI)가 정하고, 쓴 결과의 적용(돋보기 확인·교환)은 이 클래스가 양쪽 공통으로 맡는다.
-// 시계 효과와 딜러의 아이템 판단은 아직 없어, 딜러는 아이템 단계를 바로 끝낸다
+// 딜러가 무엇을 쓸지는 딜러 AI(DealerAI)가 정하고, 쓴 결과의 적용(돋보기 확인·교환, 시계)은 이 클래스가 양쪽 공통으로 맡는다.
+// 시계 효과는 아이템 단계 밖(판이 끝날 때, 카드 셔플 시작 때)에 적용되므로, 게임 진행이 그 시점에 부른다.
+// 딜러의 아이템 판단은 아직 없어, 딜러는 아이템 단계를 바로 끝낸다
 public class ItemPhaseFlow
 {
     // 진행 단계 관리와 아이템 상태는 게임 진행이 만들어 함께 쓴다
@@ -14,6 +15,11 @@ public class ItemPhaseFlow
 
     // 테이블 상태는 카드 셔플마다 새로 만들어지므로 아이템 단계를 시작할 때 받는다
     private TableState _table;
+
+    // 두 번째 판에 쓴 시계의 이월. 다음 카드 셔플에서 선 정하기를 건너뛸 때 쓰고 비운다.
+    // 이 클래스는 라운드마다 새로 만들어지므로 라운드가 끝나면 이월도 사라진다 (아이템 세부 기획서 2-3장 시계)
+    private bool _hasClockCarryOver;
+    private Side _clockCarryOverUser;
 
     public event Action<string> Logged;
 
@@ -106,6 +112,35 @@ public class ItemPhaseFlow
 
         _phaseMachine.CompleteItemUse();
         Continue();
+        return true;
+    }
+
+    // 판 결과 확인 뒤, 턴을 넘기기 전에 부른다. 이번 판 턴 플레이어가 시계를 썼는지 돌려주고,
+    // 두 번째 판이었다면 다음 카드 셔플로 이월한다 (아이템 세부 기획서 5장 I6)
+    public bool ApplyClockAtMatchEnd()
+    {
+        Side turnPlayer = _table.TurnPlayer;
+        if (!_items.HasUsedItem(turnPlayer, ItemType.Clock)) { return false; }
+
+        if (_phaseMachine.MatchIndex == GameRules.MatchesPerShuffle - 1)
+        {
+            _hasClockCarryOver = true;
+            _clockCarryOverUser = turnPlayer;
+            Log($"시계 이월: 다음 카드 셔플은 {DisplayNames.GetSideName(turnPlayer)} 선");
+            return true;
+        }
+
+        Log($"시계: 다음 판도 {DisplayNames.GetSideName(turnPlayer)} 차례");
+        return true;
+    }
+
+    // 카드 셔플의 시작 카드 배분 뒤에 부른다. 이월이 있으면 시계를 쓴 쪽을 첫 번째 판 턴 플레이어로 두고 이월을 비운 뒤 true를 돌려준다
+    public bool ApplyClockCarryOver(TableState table)
+    {
+        if (!_hasClockCarryOver) { return false; }
+
+        _hasClockCarryOver = false;
+        table.SetFirstTurnPlayerByClock(_clockCarryOverUser);
         return true;
     }
 
