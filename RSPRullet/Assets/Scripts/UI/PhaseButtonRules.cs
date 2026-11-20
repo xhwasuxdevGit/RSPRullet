@@ -1,12 +1,13 @@
 // 진행 단계별로 켤 버튼과 입력 잠금 여부를 정한다 (UI·UX 화면 흐름 세부 기획서 6-1장 단계별 버튼, 6-2장 입력 잠금, 8장 개발 명세 U3).
 // 화면과 분리한 순수 규칙이라 EditMode 테스트로 확인한다.
-// 돋보기 선택의 바꾼다·그대로 둔다는 진행 단계가 아니라 아이템 단계 안의 대기(GameFlow.IsWaitingForMagnifierChoice)라서,
-// 아이템 칸 UI와 사용 버튼 이슈(RSP-57)에서 그 값으로 버튼을 바꾸도록 추가한다.
+// 돋보기 선택의 바꾼다·그대로 둔다는 진행 단계가 아니라 아이템 단계 안의 대기(GameFlow.IsWaitingForMagnifierChoice)라서 그 값을 따로 받는다.
 public static class PhaseButtonRules
 {
     // hasUsableItem: 플레이어에게 지금 쓸 수 있는 아이템이 있는지 (UI·UX 화면 흐름 세부 기획서 5-9장 버튼 전환)
+    // isWaitingForMagnifierChoice: 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 고르는 중인지
     // playerWonRound, isFinalRound: 라운드 종료 화면(종료-01~04)을 고르는 값
-    public static PhaseButton GetButtons(GamePhase phase, Side turnPlayer, bool hasUsableItem, bool playerWonRound, bool isFinalRound)
+    public static PhaseButton GetButtons(GamePhase phase, Side turnPlayer, bool hasUsableItem, bool isWaitingForMagnifierChoice,
+        bool playerWonRound, bool isFinalRound)
     {
         switch (phase)
         {
@@ -15,9 +16,9 @@ public static class PhaseButtonRules
             case GamePhase.Distribute:
                 return turnPlayer == Side.Player ? PhaseButton.Keep | PhaseButton.Give : PhaseButton.None;
             case GamePhase.ItemTurnPlayer:
-                return GetItemButtons(turnPlayer, hasUsableItem);
+                return GetItemButtons(turnPlayer, hasUsableItem, isWaitingForMagnifierChoice);
             case GamePhase.ItemOpponent:
-                return GetItemButtons(GetOpponent(turnPlayer), hasUsableItem);
+                return GetItemButtons(GetOpponent(turnPlayer), hasUsableItem, isWaitingForMagnifierChoice);
             case GamePhase.Settlement:
                 return PhaseButton.NextShuffle;
             case GamePhase.RoundEnd:
@@ -33,12 +34,15 @@ public static class PhaseButtonRules
         return buttons == PhaseButton.None;
     }
 
-    private static PhaseButton GetItemButtons(Side actingSide, bool hasUsableItem)
+    // 돋보기 선택 중에는 선택부터 끝내야 하므로 바꾼다·그대로 둔다만 켠다 (UI·UX 화면 흐름 세부 기획서 6-1장 판-05)
+    private static PhaseButton GetItemButtons(Side actingSide, bool hasUsableItem, bool isWaitingForMagnifierChoice)
     {
         if (actingSide != Side.Player)
         {
             return PhaseButton.None;
         }
+
+        if (isWaitingForMagnifierChoice) { return PhaseButton.Exchange | PhaseButton.KeepCards; }
 
         return hasUsableItem ? PhaseButton.ItemDone : PhaseButton.NoItem;
     }

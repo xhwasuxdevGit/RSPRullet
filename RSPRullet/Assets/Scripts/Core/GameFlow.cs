@@ -76,6 +76,9 @@ public class GameFlow
     // [아이템 사용 완료]·[아이템 없음] 버튼 전환에 쓴다. 턴 플레이어가 필요해 아이템 상태와 테이블을 함께 아는 이 클래스에 둔다
     public bool HasUsableItem(Side side) => _items.HasUsableItem(side, _table.TurnPlayer);
 
+    // 아이템 칸의 회색 표시에 쓴다. HasUsableItem과 같은 이유로 이 클래스에 둔다
+    public bool CanUseItem(Side side, ItemType item) => _items.CanUseItem(side, item, _table.TurnPlayer);
+
     // 라운드 시작 → 첫 번째 카드 셔플 → 첫 번째 판의 입력 대기 지점까지 진행한다
     public bool StartRound()
     {
