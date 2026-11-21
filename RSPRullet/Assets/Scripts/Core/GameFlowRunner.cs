@@ -24,6 +24,10 @@ public class GameFlowRunner : MonoBehaviour
     private bool _isDealerThinking;
     private float _dealerThinkingTimeLeft;
 
+    // 딜러가 아이템을 쓴 뒤 기다리는 중인지와 남은 시간
+    private bool _isDealerItemWaiting;
+    private float _dealerItemWaitTimeLeft;
+
     // 라운드를 넘어 이어지는 진행 상태 (라운드와 게임 진행 세부 기획서 4-2장 원칙).
     // static 값은 씬을 다시 불러와도 남아 있어 다음 라운드로 이어지고, Play를 새로 시작하면 처음 값(1라운드)으로 돌아간다.
     // (Project Settings > Editor > Enter Play Mode Settings를 바꾸면 Play를 새로 시작해도 값이 남을 수 있다)
@@ -68,6 +72,7 @@ public class GameFlowRunner : MonoBehaviour
     private void Update()
     {
         UpdateDealerThinking();
+        UpdateDealerItemWait();
         UpdateMatchResult();
     }
 
@@ -97,6 +102,35 @@ public class GameFlowRunner : MonoBehaviour
 
         _isDealerThinking = false;
         Flow.PlayDealerTurn();
+    }
+
+    // 딜러가 쓴 아이템과 교환 표시가 보이도록, 아이템을 쓴 뒤 대기 시간이 지나야 다음으로 넘어간다
+    // (UI·UX 화면 흐름 세부 기획서 3-1장 판-06). 대기 시간은 딜러 고민 중과 같은 범위를 쓴다 (연출·아트·사운드 세부 기획서 7-3장).
+    // 대기 중에는 켤 단계별 버튼이 없어 입력이 잠긴다 (PhaseButtonRules)
+    private void UpdateDealerItemWait()
+    {
+        if (!Flow.IsWaitingForDealerItems)
+        {
+            _isDealerItemWaiting = false;
+            return;
+        }
+
+        if (!_isDealerItemWaiting)
+        {
+            _isDealerItemWaiting = true;
+            _dealerItemWaitTimeLeft = Random.Range(
+                _displayTimeSettings.DealerThinkingMinSeconds, _displayTimeSettings.DealerThinkingMaxSeconds);
+            return;
+        }
+
+        _dealerItemWaitTimeLeft -= Time.deltaTime;
+        if (_dealerItemWaitTimeLeft > 0f)
+        {
+            return;
+        }
+
+        _isDealerItemWaiting = false;
+        Flow.FinishDealerItemPhase();
     }
 
     // 판 결과는 버튼 없이 표시 시간이 지나면 다음으로 넘어간다 (UI·UX 화면 흐름 세부 기획서 6-1장, 3-2장 읽는 시간)

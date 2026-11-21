@@ -3,7 +3,8 @@ using System;
 // 아이템 단계에서는 아이템을 쓰는 쪽의 차례, 입력 확인, 돋보기 선택 대기, 아이템 효과 적용 호출을 정하고, 플레이어 차례에서만 입력을 기다린다.
 // 딜러가 무엇을 쓸지는 딜러 AI(DealerAI)가 정하고, 쓴 결과의 적용(돋보기 확인·교환, 시계)은 이 클래스가 양쪽 공통으로 맡는다.
 // 시계 효과는 아이템 단계 밖(판이 끝날 때, 카드 셔플 시작 때)에 적용되므로, 게임 진행이 그 시점에 부른다.
-// 딜러 차례는 입력을 기다리지 않고, 딜러 AI가 끝내기를 돌려줄 때까지 판단한 아이템을 하나씩 쓴다
+// 딜러 차례는 딜러 AI가 끝내기를 돌려줄 때까지 판단한 아이템을 하나씩 쓴 뒤, 쓴 결과가 화면에 보이도록 대기한다.
+// 대기를 끝내는 시점(대기 시간)은 게임 진행 실행 쪽이 정해 FinishDealerPhase로 알린다. 쓸 수 있는 아이템이 없으면 대기 없이 넘긴다
 public class ItemPhaseFlow
 {
     // 진행 단계 관리, 아이템 상태, 딜러 AI는 게임 진행이 만들어 함께 쓴다
@@ -30,6 +31,10 @@ public class ItemPhaseFlow
 
     // 플레이어가 아이템 입력(UseItem, FinishPlayerPhase)을 할 수 있는지. 돋보기 선택 중에는 선택부터 끝내야 한다
     public bool IsPlayerInputPhase => IsItemPhase() && GetItemPhaseSide() == Side.Player && !IsWaitingForMagnifierChoice;
+
+    // 딜러가 아이템을 쓴 뒤 대기 중인지. 쓸 수 있는 아이템이 없는 딜러 단계는 바로 넘어가므로,
+    // 딜러 아이템 단계에 머물러 있다면 대기 중이다 (UI·UX 화면 흐름 세부 기획서 3-1장 판-06)
+    public bool IsWaitingForDealerItems => IsItemPhase() && GetItemPhaseSide() == Side.Dealer;
 
     // 두 아이템 단계가 모두 끝나 카드 공개로 갈 차례인지
     public bool IsFinished => _phaseMachine.CurrentPhase == GamePhase.Reveal;
@@ -117,6 +122,19 @@ public class ItemPhaseFlow
         return true;
     }
 
+    // 딜러 아이템 대기가 끝났을 때 부른다. 상대 단계로 넘어가거나 IsFinished가 된다.
+    public bool FinishDealerPhase()
+    {
+        if (!IsWaitingForDealerItems)
+        {
+            return false;
+        }
+
+        _phaseMachine.CompleteItemUse();
+        Continue();
+        return true;
+    }
+
     // 판 결과 확인 뒤, 턴을 넘기기 전에 부른다. 이번 판 턴 플레이어가 시계를 썼는지 돌려주고,
     // 두 번째 판이었다면 다음 카드 셔플로 이월한다 (아이템 세부 기획서 5장 I6)
     public bool ApplyClockAtMatchEnd()
@@ -146,7 +164,7 @@ public class ItemPhaseFlow
         return true;
     }
 
-    // 지금 아이템 단계가 플레이어 차례면 입력을 기다린다. 딜러 차례는 바로 진행해 끝낸다
+    // 지금 아이템 단계가 플레이어 차례면 입력을 기다린다. 딜러 차례는 아이템을 쓰고 대기하거나, 쓸 아이템이 없으면 바로 넘긴다
     private void Continue()
     {
         while (IsItemPhase())
@@ -156,20 +174,21 @@ public class ItemPhaseFlow
                 return;
             }
 
-            PlayDealerItemPhase();
+            if (PlayDealerItemPhase()) { return; }
+
             _phaseMachine.CompleteItemUse();
         }
     }
 
-    // 딜러 아이템 단계. 쓸 수 있는 아이템이 없으면 판단 없이 넘긴다 (아이템 세부 기획서 3-3장).
-    // 있으면 딜러 AI가 끝내기(null)를 돌려줄 때까지 하나씩 쓴다. 쓴 아이템과 돋보기로 알게 된 카드가 다음 판단에 반영되도록
-    // 판단할 때마다 딜러가 아는 정보를 새로 만든다
-    private void PlayDealerItemPhase()
+    // 딜러 아이템 단계. 쓸 수 있는 아이템이 없으면 판단 없이 넘기고 false를 돌려준다 (아이템 세부 기획서 3-3장).
+    // 있으면 딜러 AI가 끝내기(null)를 돌려줄 때까지 하나씩 쓰고, 대기하도록 true를 돌려준다.
+    // 쓴 아이템과 돋보기로 알게 된 카드가 다음 판단에 반영되도록 판단할 때마다 딜러가 아는 정보를 새로 만든다
+    private bool PlayDealerItemPhase()
     {
         if (!_items.HasUsableItem(Side.Dealer, _table.TurnPlayer))
         {
             Log("딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다");
-            return;
+            return false;
         }
 
         ItemType? item = ChooseDealerItem();
@@ -179,6 +198,7 @@ public class ItemPhaseFlow
         }
 
         Log("딜러가 아이템 단계를 끝냈다");
+        return true;
     }
 
     private ItemType? ChooseDealerItem()

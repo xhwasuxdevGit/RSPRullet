@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-// 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고, 플레이어 입력과 딜러 고민 중 대기에서만 멈춘다.
+// 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고, 플레이어 입력과 딜러 고민 중 대기, 딜러 아이템 대기에서만 멈춘다.
 // 이 클래스는 흐름(단계 진행, 입력 확인, 지급·다시 섞기·아이템 단계를 시작하는 시점, 기록·로그를 남기는 시점)만 정한다.
 // 상태 계산과 변경 알림은 상태를 가진 클래스(TableState, HealthState, ItemState)가 맡고, 이 클래스는 알림을 화면에 넘긴다.
 // 아이템 단계 안의 진행(차례, 아이템 입력, 돋보기 선택 대기), 지급, 시계 효과와 이월은 아이템 진행(ItemPhaseFlow)이 맡는다.
@@ -54,6 +54,13 @@ public class GameFlow
 
     // 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 그대로 둘지 고르는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
     public bool IsWaitingForMagnifierChoice => _itemPhase.IsWaitingForMagnifierChoice;
+
+    // 딜러가 아이템을 쓴 뒤, 쓴 결과가 화면에 보이도록 대기하는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
+    // 화면은 단계 변경 알림 안에서 이 값을 읽는데, 아이템 단계로 바뀌었다는 알림은 아이템 진행이 이번 판 테이블을 받기 전에 온다.
+    // 그래서 아이템 진행의 값을 넘기지 않고, 항상 이번 판 테이블을 가진 이 클래스가 지금 아이템을 쓰는 쪽으로 정한다
+    public bool IsWaitingForDealerItems =>
+        (CurrentPhase == GamePhase.ItemTurnPlayer && _table.TurnPlayer == Side.Dealer) ||
+        (CurrentPhase == GamePhase.ItemOpponent && _table.TurnPlayer == Side.Player);
 
     // 같은 시드의 난수를 넘기면 카드풀·더미 순서·딜러 선택·아이템 지급이 같게 나와 테스트에서 진행을 재현할 수 있다
     public GameFlow(RuleSettings rules, RoundSettings round, DealerSettings dealerSettings, ItemSettings itemSettings, System.Random random)
@@ -120,6 +127,15 @@ public class GameFlow
     public bool FinishItemPhase()
     {
         if (!_itemPhase.FinishPlayerPhase()) { return Ignore(nameof(FinishItemPhase)); }
+
+        ResolveMatchIfItemPhaseFinished();
+        return true;
+    }
+
+    // 딜러 아이템 대기가 끝나면 상대 단계로 넘어가거나, 두 아이템 단계가 모두 끝났으면 카드 공개·판정까지 진행한다
+    public bool FinishDealerItemPhase()
+    {
+        if (!_itemPhase.FinishDealerPhase()) { return Ignore(nameof(FinishDealerItemPhase)); }
 
         ResolveMatchIfItemPhaseFinished();
         return true;

@@ -47,7 +47,8 @@ public class SettingsAssetTests
         Assert.AreEqual(20, settings.GetWeight(ItemType.Clock));
     }
 
-    // UI·UX 화면 흐름 세부 기획서 3-2장 판-07 승패 판정 표시 시작값, 연출·아트·사운드 세부 기획서 7-3장 딜러 고민 중 범위
+    // UI·UX 화면 흐름 세부 기획서 3-2장 판-07 승패 판정 표시 시작값.
+    // 딜러 고민 중 범위는 연출·아트·사운드 세부 기획서 7-3장 시작 범위(0.8~1.5초)에서 플레이 테스트로 정한 값이다 (RSP-97)
     [Test]
     public void DisplayTimeSettings_MatchPlannedValues()
     {
@@ -55,8 +56,8 @@ public class SettingsAssetTests
 
         Assert.IsNotNull(settings);
         Assert.AreEqual(1.6f, settings.MatchResultSeconds, 0.0001f);
-        Assert.AreEqual(0.8f, settings.DealerThinkingMinSeconds, 0.0001f);
-        Assert.AreEqual(1.5f, settings.DealerThinkingMaxSeconds, 0.0001f);
+        Assert.AreEqual(1.5f, settings.DealerThinkingMinSeconds, 0.0001f);
+        Assert.AreEqual(2.0f, settings.DealerThinkingMaxSeconds, 0.0001f);
     }
 
     // 딜러 AI 세부 기획서 7-1-1장 기본값. 시계 사용 확률은 규칙 설정 에셋에서 옮겨 온 값(0.85)을 유지한다

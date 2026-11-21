@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: DisplayTimeSettings
   m_EditorClassIdentifier: RSPRullet::DisplayTimeSettings
   _matchResultSeconds: 1.6
+  _dealerThinkingMinSeconds: 1.5
+  _dealerThinkingMaxSeconds: 2
