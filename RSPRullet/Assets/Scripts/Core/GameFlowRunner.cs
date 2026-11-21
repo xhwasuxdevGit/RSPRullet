@@ -15,6 +15,7 @@ public class GameFlowRunner : MonoBehaviour
     [SerializeField] private DealerSettings _dealerSettings;
     [SerializeField] private ItemSettings _itemSettings;
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
+    [SerializeField] private TutorialSettings _tutorialSettings;
 
     // 판 결과를 보여 주는 중인지와 남은 시간
     private bool _isShowingMatchResult;
@@ -35,6 +36,9 @@ public class GameFlowRunner : MonoBehaviour
 
     public GameFlow Flow { get; private set; }
 
+    // 1라운드 튜토리얼 안내. 말풍선 화면은 지금 안내를 읽고 클릭을 넘기며, 이 쪽은 클릭을 기다리는 동안 자동 진행 화면을 넘기지 않는다
+    public TutorialGuide Guide { get; private set; }
+
     // 라운드가 끝났을 때 하단 버튼 대신 게임 클리어·게임 오버 팝업을 보일지 정한다 (UI·UX 화면 흐름 세부 기획서 3-1장 종료-03·04)
     public bool IsFinalRound => _progress.IsFinalRound;
 
@@ -46,6 +50,7 @@ public class GameFlowRunner : MonoBehaviour
     {
         RoundSettings round = _roundSettings[_progress.RoundNumber - 1];
         Flow = new GameFlow(_ruleSettings, round, _dealerSettings, _itemSettings, new System.Random());
+        Guide = new TutorialGuide(Flow, _tutorialSettings);
     }
 
     private void Start()
@@ -114,7 +119,8 @@ public class GameFlowRunner : MonoBehaviour
     }
 
     // 딜러는 대기 시간이 지나야 뽑아 둔 카드를 분배한다 (연출·아트·사운드 세부 기획서 7-3장).
-    // 대기 중에는 켤 단계별 버튼이 없어 입력이 잠긴다 (PhaseButtonRules)
+    // 대기 중에는 켤 단계별 버튼이 없어 입력이 잠긴다 (PhaseButtonRules).
+    // 이번 대기에 튜토리얼 안내를 띄웠으면 대기 시간이 지나도 플레이어가 클릭할 때까지 기다린다 (튜토리얼(1라운드) 세부 기획서 2-3장)
     private void UpdateDealerThinking()
     {
         if (!Flow.IsWaitingForDealer)
@@ -132,7 +138,7 @@ public class GameFlowRunner : MonoBehaviour
         }
 
         _dealerThinkingTimeLeft -= Time.deltaTime;
-        if (_dealerThinkingTimeLeft > 0f)
+        if (!TutorialGuideRules.CanAdvance(_dealerThinkingTimeLeft <= 0f, Guide.IsWaitingForClick))
         {
             return;
         }
@@ -170,7 +176,8 @@ public class GameFlowRunner : MonoBehaviour
         Flow.FinishDealerItemPhase();
     }
 
-    // 판 결과는 버튼 없이 표시 시간이 지나면 다음으로 넘어간다 (UI·UX 화면 흐름 세부 기획서 6-1장, 3-2장 읽는 시간)
+    // 판 결과는 버튼 없이 표시 시간이 지나면 다음으로 넘어간다 (UI·UX 화면 흐름 세부 기획서 6-1장, 3-2장 읽는 시간).
+    // 이번 판 결과에 튜토리얼 안내를 띄웠으면 표시 시간이 지나도 플레이어가 클릭할 때까지 기다린다 (튜토리얼(1라운드) 세부 기획서 2-3장)
     private void UpdateMatchResult()
     {
         if (Flow.CurrentPhase != GamePhase.ShowResult)
@@ -187,7 +194,7 @@ public class GameFlowRunner : MonoBehaviour
         }
 
         _matchResultTimeLeft -= Time.deltaTime;
-        if (_matchResultTimeLeft > 0f)
+        if (!TutorialGuideRules.CanAdvance(_matchResultTimeLeft <= 0f, Guide.IsWaitingForClick))
         {
             return;
         }
