@@ -256,7 +256,7 @@ public class GameFlow
         bool dealerUsedCoffee = _items.HasUsedItem(Side.Dealer, ItemType.Coffee);
         MatchResult playerResult = _health.ApplyMatch(playerShape, dealerShape, playerUsedCoffee, dealerUsedCoffee);
         Record(JudgmentRecordRules.GetMatchText(MatchIndex, playerShape, dealerShape,
-            _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer)));
+            _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer), _table.IsMatchCardSwapped));
         Log(FlowLogText.GetMatchResult(MatchIndex, playerShape, dealerShape, playerResult,
             _health.GetHealth(Side.Player), _health.GetHealth(Side.Dealer)));
         _phaseMachine.CompleteJudge();
