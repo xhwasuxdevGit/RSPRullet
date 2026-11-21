@@ -19,9 +19,11 @@ public static class JudgmentRecordRules
     }
 
     // 예: "첫 번째 판: 당신 [보] vs 딜러 [바위]\n  → 당신 승리, 딜러: 체력 -1". 비기면 "\n  → 무승부, 체력 변화 없음".
-    // 체력 변화량은 실제로 바뀐 값(판정 전후 체력 차이)을 넘긴다
+    // 체력 변화량은 실제로 바뀐 값(판정 전후 체력 차이)을 넘긴다.
+    // isSwapped는 돋보기로 판 카드를 맞바꾼 채 판정했는지다. 손 모양이 다르면 맞바꾼 판의 승패는 반드시 뒤집히므로,
+    // 이긴 쪽·진 쪽 결과 뒤에만 " [돋보기]"를 붙인다. 예: "  → 당신 승리 [돋보기], 딜러: 체력 -2". 비긴 판은 붙이지 않는다 (RSP-100)
     public static string GetMatchText(int matchIndex, HandShape playerShape, HandShape dealerShape,
-        int playerHealthChange, int dealerHealthChange)
+        int playerHealthChange, int dealerHealthChange, bool isSwapped)
     {
         MatchResult playerResult = HandShapeRules.Compare(playerShape, dealerShape);
         string result;
@@ -36,6 +38,11 @@ public static class JudgmentRecordRules
             default:
                 result = "무승부";
                 break;
+        }
+
+        if (isSwapped && playerResult != MatchResult.Draw)
+        {
+            result += " [돋보기]";
         }
 
         return $"{DisplayNames.GetMatchName(matchIndex)}: {GetVersusText(playerShape, dealerShape)}{NextLine}{result}, " +

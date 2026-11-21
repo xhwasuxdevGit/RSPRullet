@@ -965,6 +965,45 @@ public class GameFlowTests
         Assert.AreEqual(expectedDealerLoss, dealerBefore - flow.Health.GetHealth(Side.Dealer));
     }
 
+    // 바꿔서 판정하면 판정 기록의 결과 줄에 [돋보기]가 붙는다. 교환했어도 손 모양이 같아 비기면 붙지 않는다 (RSP-100)
+    [Test]
+    public void ChooseExchange_JudgmentRecordMarksMagnifier_UnlessDraw()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+        Card playerCardBefore = GetLastSlotCard(flow, Side.Player);
+        Card dealerCardBefore = GetLastSlotCard(flow, Side.Dealer);
+        var lines = new List<string>();
+        flow.JudgmentRecorded += lines.Add;
+
+        flow.UseItem(ItemType.Magnifier);
+        flow.ChooseMagnifierExchange(exchange: true);
+        flow.FinishItemPhase();
+        FinishItemPhases(flow);
+
+        string matchLine = lines[lines.Count - 1];
+        StringAssert.StartsWith("첫 번째 판:", matchLine);
+        bool isDraw = HandShapeRules.Compare(dealerCardBefore.Shape, playerCardBefore.Shape) == MatchResult.Draw;
+        Assert.AreEqual(!isDraw, matchLine.Contains("[돋보기]"));
+    }
+
+    // 그대로 두고 판정하면 결과 줄에 [돋보기]가 붙지 않는다 (RSP-100)
+    [Test]
+    public void ChooseKeep_JudgmentRecordHasNoMagnifierMark()
+    {
+        GameFlow flow = StartPlayerItemPhaseWithMagnifier();
+        var lines = new List<string>();
+        flow.JudgmentRecorded += lines.Add;
+
+        flow.UseItem(ItemType.Magnifier);
+        flow.ChooseMagnifierExchange(exchange: false);
+        flow.FinishItemPhase();
+        FinishItemPhases(flow);
+
+        string matchLine = lines[lines.Count - 1];
+        StringAssert.StartsWith("첫 번째 판:", matchLine);
+        StringAssert.DoesNotContain("[돋보기]", matchLine);
+    }
+
     // 그대로 둔다: 카드는 그대로이고 "돋보기 사용 / 교환 안 함"이 기록된다. 다시 아이템 단계 입력을 받는다
     [Test]
     public void ChooseKeep_LeavesCards_AndRecordsNoExchange()

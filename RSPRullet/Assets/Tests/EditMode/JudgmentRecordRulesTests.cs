@@ -19,7 +19,16 @@ public class JudgmentRecordRulesTests
     [TestCase(0, HandShape.Rock, HandShape.Rock, 0, 0, "첫 번째 판: 당신 [바위] vs 딜러 [바위]\n  → 무승부, 체력 변화 없음")]
     public void MatchText(int matchIndex, HandShape player, HandShape dealer, int playerChange, int dealerChange, string expected)
     {
-        Assert.AreEqual(expected, JudgmentRecordRules.GetMatchText(matchIndex, player, dealer, playerChange, dealerChange));
+        Assert.AreEqual(expected, JudgmentRecordRules.GetMatchText(matchIndex, player, dealer, playerChange, dealerChange, false));
+    }
+
+    // 돋보기로 카드를 맞바꿔 승패가 바뀐 판은 이긴 쪽·진 쪽 결과 뒤에 [돋보기]를 붙이고, 비긴 판은 붙이지 않는다 (RSP-100)
+    [TestCase(HandShape.Paper, HandShape.Rock, 0, -1, "첫 번째 판: 당신 [보] vs 딜러 [바위]\n  → 당신 승리 [돋보기], 딜러: 체력 -1")]
+    [TestCase(HandShape.Scissors, HandShape.Rock, -2, 0, "첫 번째 판: 당신 [가위] vs 딜러 [바위]\n  → 딜러 승리 [돋보기], 당신: 체력 -2")]
+    [TestCase(HandShape.Rock, HandShape.Rock, 0, 0, "첫 번째 판: 당신 [바위] vs 딜러 [바위]\n  → 무승부, 체력 변화 없음")]
+    public void MatchText_Swapped(HandShape player, HandShape dealer, int playerChange, int dealerChange, string expected)
+    {
+        Assert.AreEqual(expected, JudgmentRecordRules.GetMatchText(0, player, dealer, playerChange, dealerChange, true));
     }
 
     [Test]
