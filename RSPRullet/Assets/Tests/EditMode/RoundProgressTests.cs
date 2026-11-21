@@ -59,4 +59,19 @@ public class RoundProgressTests
         Assert.IsFalse(progress.TakeMedicine());
         Assert.AreEqual(0, progress.MedicineCount);
     }
+
+    [Test]
+    public void StartNewGame_ResetsRoundAndMedicineCount()
+    {
+        var progress = new RoundProgress();
+        progress.TakeMedicine();
+        progress.AdvanceRound();
+        progress.AdvanceRound();
+
+        progress.StartNewGame();
+
+        Assert.AreEqual(1, progress.RoundNumber);
+        Assert.AreEqual(0, progress.MedicineCount);
+        Assert.IsFalse(progress.IsFinalRound);
+    }
 }

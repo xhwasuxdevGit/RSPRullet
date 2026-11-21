@@ -38,4 +38,12 @@ public class RoundProgress
         MedicineCount++;
         return true;
     }
+
+    // 1라운드, 응급약 복용 0회로 돌린다 (라운드와 게임 진행 세부 기획서 8-2장 R-F1 새 게임).
+    // 언제 새 게임을 시작할 수 있는지는 부르는 쪽(GameFlowRunner)이 확인한다
+    public void StartNewGame()
+    {
+        RoundNumber = 1;
+        MedicineCount = 0;
+    }
 }

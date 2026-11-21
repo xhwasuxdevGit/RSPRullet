@@ -35,8 +35,11 @@ public class GameFlowRunner : MonoBehaviour
 
     public GameFlow Flow { get; private set; }
 
-    // 라운드가 끝났을 때 [다음 라운드] 대신 [다시하기]를 보일지 정한다 (UI·UX 화면 흐름 세부 기획서 3-1장 종료-03·04)
+    // 라운드가 끝났을 때 하단 버튼 대신 게임 클리어·게임 오버 팝업을 보일지 정한다 (UI·UX 화면 흐름 세부 기획서 3-1장 종료-03·04)
     public bool IsFinalRound => _progress.IsFinalRound;
+
+    // 게임 클리어·게임 오버 팝업에 보여 줄 응급약 복용 횟수 (라운드와 게임 진행 세부 기획서 6장 라운드 종료 표시 내용)
+    public int MedicineCount => _progress.MedicineCount;
 
     // 모든 Awake가 끝난 뒤 Start가 불리므로, 화면은 Awake에서 Flow.Logged를 구독하면 라운드 시작 로그부터 받는다
     private void Awake()
@@ -85,6 +88,20 @@ public class GameFlowRunner : MonoBehaviour
             return false;
         }
 
+        SceneManager.LoadScene(gameObject.scene.buildIndex);
+        return true;
+    }
+
+    // [다시하기]: 마지막 라운드가 끝났으면 이겼든 졌든 1라운드·응급약 복용 0회로 돌리고 씬을 다시 불러온다
+    // (라운드와 게임 진행 세부 기획서 8-2장 R-F1 새 게임, 3장 게임 진행 흐름)
+    public bool RestartGame()
+    {
+        if (Flow.CurrentPhase != GamePhase.RoundEnd || !_progress.IsFinalRound)
+        {
+            return false;
+        }
+
+        _progress.StartNewGame();
         SceneManager.LoadScene(gameObject.scene.buildIndex);
         return true;
     }

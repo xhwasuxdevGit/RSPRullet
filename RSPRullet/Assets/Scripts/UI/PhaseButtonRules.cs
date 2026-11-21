@@ -47,12 +47,13 @@ public static class PhaseButtonRules
         return hasUsableItem ? PhaseButton.ItemDone : PhaseButton.NoItem;
     }
 
-    // 3라운드는 이겨도 져도 클리어·게임 오버 팝업의 다시하기만 둔다 (UI·UX 화면 흐름 세부 기획서 3-1장 종료-03·04)
+    // 마지막 라운드가 끝나면 이겨도 져도 게임 클리어·게임 오버 팝업의 버튼만 쓰므로 하단 버튼을 모두 끄고 입력을 잠근다
+    // (UI·UX 화면 흐름 세부 기획서 3-1장 종료-03·04, 6-5장 게임 클리어·게임 오버 팝업)
     private static PhaseButton GetRoundEndButton(bool playerWonRound, bool isFinalRound)
     {
         if (isFinalRound)
         {
-            return PhaseButton.Restart;
+            return PhaseButton.None;
         }
 
         return playerWonRound ? PhaseButton.NextRound : PhaseButton.TakeMedicine;
