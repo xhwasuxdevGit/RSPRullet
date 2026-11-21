@@ -10009,7 +10009,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uC544\uC774\uD15C\uC744 \uC4F0\uB294 \uC911\u2026"
+  m_text: "\uC544\uC774\uD15C \uC0AC\uC6A9 \uACE0\uBBFC \uC911\u2026"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 900c907d38a66d345ab2add523229204, type: 2}
   m_sharedMaterial: {fileID: 7827232561427984642, guid: 900c907d38a66d345ab2add523229204, type: 2}
@@ -12451,8 +12451,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 30.5, y: 0}
-  m_SizeDelta: {x: 61, y: 0}
+  m_AnchoredPosition: {x: 82.28125, y: 0}
+  m_SizeDelta: {x: 164.5626, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1473503321
 GameObject:

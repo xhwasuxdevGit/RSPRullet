@@ -69,6 +69,26 @@ public class GameFlowRunner : MonoBehaviour
         return true;
     }
 
+    // [응급약 복용]: 라운드를 졌고 마지막 라운드가 아니면 응급약 복용 횟수를 올리고 같은 라운드로 씬을 다시 불러온다.
+    // 체력·아이템·시계 이월·카드 셔플은 새로 만드는 GameFlow가 라운드 시작 상태로 돌린다
+    // (라운드와 게임 진행 세부 기획서 8-2장 R-F4 응급약 복용, 4-1장 값별 처리)
+    public bool TakeMedicine()
+    {
+        bool playerWonRound = Flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
+        if (Flow.CurrentPhase != GamePhase.RoundEnd || playerWonRound)
+        {
+            return false;
+        }
+
+        if (!_progress.TakeMedicine())
+        {
+            return false;
+        }
+
+        SceneManager.LoadScene(gameObject.scene.buildIndex);
+        return true;
+    }
+
     private void Update()
     {
         UpdateDealerThinking();
