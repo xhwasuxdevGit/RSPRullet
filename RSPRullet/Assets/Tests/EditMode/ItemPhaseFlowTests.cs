@@ -139,15 +139,17 @@ public class ItemPhaseFlowTests
         Assert.IsTrue(_itemPhase.FinishPlayerPhase());
 
         Assert.IsTrue(_itemPhase.IsFinished);
+        Assert.IsFalse(_itemPhase.IsWaitingForDealerItems);
         CollectionAssert.Contains(_logs, "딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다");
     }
 
     // ── 딜러 아이템 단계 (딜러 AI 세부 기획서 4장) ──
 
     // 딜러가 턴 플레이어로 바위를 가졌고 플레이어 자리 카드(가위)를 모른다. 돋보기로 가위를 확인하고,
-    // 교환하면 지므로 그대로 둔 뒤, 이길 것을 알아 커피를 쓴다. 끝내면 상대인 플레이어 단계에서 입력을 기다린다
+    // 교환하면 지므로 그대로 둔 뒤, 이길 것을 알아 커피를 쓴다. 쓴 뒤에는 딜러 단계에서 대기하고,
+    // 대기를 끝내면 상대인 플레이어 단계에서 입력을 기다린다
     [Test]
-    public void DealerTurn_UsesMagnifierThenCoffee_ThenWaitsForPlayer()
+    public void DealerTurn_UsesMagnifierThenCoffee_WaitsThenPlayerStep()
     {
         CreateItemPhase(Capacity);
         _items.TryAddItem(Side.Dealer, ItemType.Magnifier);
@@ -164,7 +166,32 @@ public class ItemPhaseFlowTests
         };
         CollectionAssert.AreEqual(expectedUses, _items.ItemUses);
         Assert.AreEqual(2, itemUsedCount);
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, _phaseMachine.CurrentPhase);
+        Assert.IsTrue(_itemPhase.IsWaitingForDealerItems);
+        Assert.IsFalse(_itemPhase.IsPlayerInputPhase);
+
+        Assert.IsTrue(_itemPhase.FinishDealerPhase());
+
         Assert.AreEqual(GamePhase.ItemOpponent, _phaseMachine.CurrentPhase);
+        Assert.IsFalse(_itemPhase.IsWaitingForDealerItems);
+        Assert.IsTrue(_itemPhase.IsPlayerInputPhase);
+    }
+
+    // 딜러 대기 중에는 플레이어의 아이템 입력과 단계 끝내기를 받지 않고,
+    // 대기가 아닐 때(플레이어 차례)는 딜러 대기 끝내기를 받지 않는다
+    [Test]
+    public void DealerWaiting_BlocksPlayerInputs_AndFinishDealerOnlyWhileWaiting()
+    {
+        CreateItemPhase(Capacity, ItemType.Coffee);
+        _items.TryAddItem(Side.Dealer, ItemType.Magnifier);
+
+        StartItemPhase(HandShape.Paper, HandShape.Scissors);
+        Assert.IsTrue(_itemPhase.IsWaitingForDealerItems);
+        Assert.IsFalse(_itemPhase.UseItem(ItemType.Coffee));
+        Assert.IsFalse(_itemPhase.FinishPlayerPhase());
+
+        Assert.IsTrue(_itemPhase.FinishDealerPhase());
+        Assert.IsFalse(_itemPhase.FinishDealerPhase());
         Assert.IsTrue(_itemPhase.IsPlayerInputPhase);
     }
 
@@ -187,6 +214,9 @@ public class ItemPhaseFlowTests
 
         Assert.IsTrue(_itemPhase.FinishPlayerPhase());
 
+        // 딜러가 다시 교환한 결과가 보이도록 판정으로 가지 않고 딜러 단계에서 대기한다
+        Assert.IsTrue(_itemPhase.IsWaitingForDealerItems);
+        Assert.IsFalse(_itemPhase.IsFinished);
         Assert.IsFalse(table.IsMatchCardSwapped);
         Assert.AreEqual(HandShape.Rock, table.GetMatchCard(Side.Player).Shape);
         var expectedUses = new List<(Side, ItemType, bool)>
@@ -195,10 +225,12 @@ public class ItemPhaseFlowTests
             (Side.Dealer, ItemType.Magnifier, true),
         };
         CollectionAssert.AreEqual(expectedUses, _items.ItemUses);
+
+        Assert.IsTrue(_itemPhase.FinishDealerPhase());
         Assert.IsTrue(_itemPhase.IsFinished);
     }
 
-    // 딜러가 턴 플레이어면 딜러 단계가 먼저 지나고, 상대인 플레이어 단계에서 입력을 기다린다
+    // 딜러가 턴 플레이어여도 쓸 수 있는 아이템이 없으면 딜러 단계가 대기 없이 지나고, 상대인 플레이어 단계에서 입력을 기다린다
     [Test]
     public void DealerTurn_DealerStepPassesFirst_ThenWaitsForPlayer()
     {
@@ -206,6 +238,7 @@ public class ItemPhaseFlowTests
 
         StartItemPhase(HandShape.Paper, HandShape.Scissors);
         Assert.AreEqual(GamePhase.ItemOpponent, _phaseMachine.CurrentPhase);
+        Assert.IsFalse(_itemPhase.IsWaitingForDealerItems);
         Assert.IsTrue(_itemPhase.IsPlayerInputPhase);
 
         Assert.IsTrue(_itemPhase.FinishPlayerPhase());

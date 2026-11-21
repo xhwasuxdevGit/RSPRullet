@@ -45,21 +45,23 @@ public class GameFlowTests
         if (flow.IsWaitingForDealer)
         {
             flow.PlayDealerTurn();
-            FinishPlayerItemPhase(flow);
+            FinishItemPhases(flow);
             return;
         }
 
         flow.DrawCard();
         flow.Distribute(keep: true);
-        FinishPlayerItemPhase(flow);
+        FinishItemPhases(flow);
     }
 
-    // 아이템이 있는 라운드면 플레이어 아이템 단계에서 멈추므로, 아이템을 쓰지 않고 끝내 판 결과까지 간다
-    private static void FinishPlayerItemPhase(GameFlow flow)
+    // 아이템이 있는 라운드면 플레이어 아이템 단계와 딜러 아이템 대기에서 멈추므로, 판 결과까지 간다.
+    // 플레이어는 아이템을 더 쓰지 않고 끝내고, 딜러 아이템 대기는 대기 시간이 지난 것으로 보고 끝낸다
+    private static void FinishItemPhases(GameFlow flow)
     {
-        if (flow.CurrentPhase == GamePhase.ItemTurnPlayer || flow.CurrentPhase == GamePhase.ItemOpponent)
+        while (flow.CurrentPhase == GamePhase.ItemTurnPlayer || flow.CurrentPhase == GamePhase.ItemOpponent)
         {
-            flow.FinishItemPhase();
+            bool moved = flow.IsWaitingForDealerItems ? flow.FinishDealerItemPhase() : flow.FinishItemPhase();
+            if (!moved) { return; }
         }
     }
 
@@ -695,6 +697,7 @@ public class GameFlowTests
 
         Assert.IsFalse(flow.UseItem(ItemType.Coffee));
         Assert.IsFalse(flow.FinishItemPhase());
+        Assert.IsFalse(flow.FinishDealerItemPhase());
         Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
     }
 
@@ -851,7 +854,7 @@ public class GameFlowTests
 
             Assert.IsTrue(flow.UseItem(ItemType.Coffee), $"seed {seed}");
             Assert.AreEqual(coffeeCountBefore - 1, CountItem(flow.Items.GetItems(Side.Player), ItemType.Coffee), $"seed {seed}");
-            flow.FinishItemPhase();
+            FinishItemPhases(flow);
             Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase, $"seed {seed}");
 
             // 판 결과를 보여 주는 동안 각자 조합 칸의 마지막 카드가 이번 판 카드다
@@ -952,6 +955,7 @@ public class GameFlowTests
         int playerBefore = flow.Health.GetHealth(Side.Player);
         int dealerBefore = flow.Health.GetHealth(Side.Dealer);
         Assert.IsTrue(flow.FinishItemPhase());
+        FinishItemPhases(flow);
         Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
 
         MatchResult playerResult = HandShapeRules.Compare(dealerCardBefore.Shape, playerCardBefore.Shape);
@@ -1020,7 +1024,7 @@ public class GameFlowTests
             flow.Distribute(keep: true);
             Assert.IsTrue(flow.UseItem(ItemType.Clock), $"seed {seed}");
             Assert.IsTrue(flow.Items.HasUsedItem(Side.Player, ItemType.Clock), $"seed {seed}");
-            flow.FinishItemPhase();
+            FinishItemPhases(flow);
             flow.Next();
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
@@ -1066,7 +1070,7 @@ public class GameFlowTests
             flow.DrawCard();
             flow.Distribute(keep: true);
             Assert.IsTrue(flow.UseItem(ItemType.Clock), $"seed {seed}");
-            flow.FinishItemPhase();
+            FinishItemPhases(flow);
             flow.Next();
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
 
@@ -1217,6 +1221,89 @@ public class GameFlowTests
         Assert.IsTrue(logs.Contains("딜러가 쓸 수 있는 아이템이 없어 아이템 단계를 넘겼다"));
         Assert.AreEqual(0, flow.Items.ItemUses.Count);
         Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // ── 딜러 아이템 대기 (RSP-97, UI·UX 화면 흐름 세부 기획서 3-1장 판-06) ──
+    // 2라운드 값이면 라운드 시작 지급으로 딜러가 돋보기를 가지고 시작해, 딜러에게 쓸 수 있는 아이템이 있다
+
+    // 플레이어가 턴 플레이어면 플레이어 단계를 끝낸 뒤 딜러 단계에서 대기하고, 판정으로 가지 않는다.
+    // 대기 중에는 플레이어 아이템 입력을 받지 않고, 대기를 끝내면 판 결과로 간다
+    [Test]
+    public void PlayerTurn_DealerWithItems_WaitsBeforeResolve()
+    {
+        SetRound2ItemValues();
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
+        flow.DrawCard();
+        flow.Distribute(keep: true);
+
+        Assert.IsTrue(flow.FinishItemPhase());
+
+        Assert.AreEqual(GamePhase.ItemOpponent, flow.CurrentPhase);
+        Assert.IsTrue(flow.IsWaitingForDealerItems);
+        Assert.IsFalse(flow.FinishItemPhase());
+        Assert.IsFalse(flow.UseItem(ItemType.Magnifier));
+
+        Assert.IsTrue(flow.FinishDealerItemPhase());
+
+        Assert.IsFalse(flow.IsWaitingForDealerItems);
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 딜러가 턴 플레이어면 딜러 분배 뒤 딜러 단계에서 먼저 대기하고, 대기를 끝내면 플레이어 단계에서 입력을 기다린다
+    [Test]
+    public void DealerTurn_DealerWithItems_WaitsThenPlayerItemPhase()
+    {
+        SetRound2ItemValues();
+        GameFlow flow = StartFlowWithTurnPlayer(Side.Dealer);
+
+        Assert.IsTrue(flow.PlayDealerTurn());
+
+        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
+        Assert.IsTrue(flow.IsWaitingForDealerItems);
+
+        Assert.IsTrue(flow.FinishDealerItemPhase());
+
+        Assert.AreEqual(GamePhase.ItemOpponent, flow.CurrentPhase);
+        Assert.IsFalse(flow.IsWaitingForDealerItems);
+        Assert.IsTrue(flow.FinishItemPhase());
+        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+    }
+
+    // 화면은 단계 변경 알림 안에서 딜러 아이템 대기 여부를 읽는다. 아이템 진행이 이번 판 테이블을 받기 전인 첫 번째 판과
+    // 테이블이 새로 만들어진 다음 카드 셔플에서도 오류 없이, 지금 아이템을 쓰는 쪽이 딜러인지로 맞게 나와야 한다 (RSP-97 Play 검증에서 발견)
+    [Test]
+    public void IsWaitingForDealerItems_InPhaseChanged_MatchesActingSide()
+    {
+        SetRound2ItemValues();
+        int itemPhaseEventCount = 0;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
+            flow.PhaseChanged += (previous, next) =>
+            {
+                bool expected = false;
+                if (next == GamePhase.ItemTurnPlayer || next == GamePhase.ItemOpponent)
+                {
+                    itemPhaseEventCount++;
+                    Side actingSide = next == GamePhase.ItemTurnPlayer ? flow.Table.TurnPlayer : TableState.Opponent(flow.Table.TurnPlayer);
+                    expected = actingSide == Side.Dealer;
+                }
+
+                Assert.AreEqual(expected, flow.IsWaitingForDealerItems, $"seed {seed}, {previous} → {next}");
+            };
+
+            flow.StartRound();
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            PlayOneShuffle(flow);
+        }
+
+        Assert.Greater(itemPhaseEventCount, 0);
     }
 
     // 딜러가 턴 플레이어로 시계를 쓰면 다음 판도 딜러 차례이고,

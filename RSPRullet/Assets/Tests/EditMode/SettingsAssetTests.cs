@@ -55,8 +55,8 @@ public class SettingsAssetTests
 
         Assert.IsNotNull(settings);
         Assert.AreEqual(1.6f, settings.MatchResultSeconds, 0.0001f);
-        Assert.AreEqual(0.8f, settings.DealerThinkingMinSeconds, 0.0001f);
-        Assert.AreEqual(1.5f, settings.DealerThinkingMaxSeconds, 0.0001f);
+        Assert.AreEqual(1.5f, settings.DealerThinkingMinSeconds, 0.0001f);
+        Assert.AreEqual(2.0f, settings.DealerThinkingMaxSeconds, 0.0001f);
     }
 
     // 딜러 AI 세부 기획서 7-1-1장 기본값. 시계 사용 확률은 규칙 설정 에셋에서 옮겨 온 값(0.85)을 유지한다
