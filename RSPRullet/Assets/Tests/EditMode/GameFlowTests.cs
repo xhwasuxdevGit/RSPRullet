@@ -79,6 +79,13 @@ public class GameFlowTests
         flow.Next();
     }
 
+    // 정산 결과 표시를 끝내고(표시 시간이 지난 것으로 본다), 라운드가 이어지면 [다음 카드 셔플]까지 눌러 다음 카드 셔플을 시작한다
+    private static void FinishSettlement(GameFlow flow)
+    {
+        flow.Next();
+        if (flow.CurrentPhase == GamePhase.SettlementWait) { flow.Next(); }
+    }
+
     [Test]
     public void StartRound_StopsAtPlayerDraw_OrDealerThinking()
     {
@@ -269,7 +276,7 @@ public class GameFlowTests
         {
             GameFlow flow = StartFlow(seed);
             PlayOneShuffle(flow);
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd)
             {
                 continue;
@@ -284,6 +291,66 @@ public class GameFlowTests
         }
 
         Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
+    }
+
+    // 정산 결과 표시가 끝나면 라운드가 이어질 때 [다음 카드 셔플] 대기에서 멈추고, 그 입력에서만 다음 카드 셔플을 시작한다
+    // (UI·UX 화면 흐름 세부 기획서 3-1장 정산-01·02)
+    [Test]
+    public void SettlementDisplayEnd_WaitsForNextShuffle_WhenRoundContinues()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            Assert.IsTrue(flow.Next());
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            // 대기 중에는 아직 같은 카드 셔플이고 정산 결과가 남아 있으며, 판 입력은 받지 않는다
+            Assert.AreEqual(GamePhase.SettlementWait, flow.CurrentPhase);
+            Assert.AreEqual(1, flow.ShuffleCount);
+            Assert.AreEqual(3, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.IsFalse(flow.DrawCard());
+
+            Assert.IsTrue(flow.Next());
+            Assert.AreEqual(2, flow.ShuffleCount);
+            Assert.AreEqual(0, flow.MatchIndex);
+            return;
+        }
+
+        Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
+    }
+
+    // 정산에서 한쪽만 체력 0이 되면 [다음 카드 셔플] 대기 없이 정산 결과 표시에서 바로 라운드 종료로 간다
+    [Test]
+    public void SettlementWithOneSideAtZero_EndsRoundWithoutNextShuffleWait()
+    {
+        // 정산에서 체력 0이 나오기 쉽도록 시작 체력을 낮춘다. 판 도중 라운드가 끝난 시드는 건너뛴다
+        var round = new SerializedObject(_round);
+        round.FindProperty("_startHealth").intValue = 2;
+        round.ApplyModifiedPropertiesWithoutUndo();
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            PlayOneShuffle(flow);
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            var phases = new List<GamePhase>();
+            flow.PhaseChanged += (previous, next) => phases.Add(next);
+            Assert.IsTrue(flow.Next());
+            if (flow.CurrentPhase != GamePhase.RoundEnd) { continue; }
+
+            CollectionAssert.AreEqual(new[] { GamePhase.RoundEnd }, phases);
+            int playerHealth = flow.Health.GetHealth(Side.Player);
+            int dealerHealth = flow.Health.GetHealth(Side.Dealer);
+            Assert.IsTrue((playerHealth == 0) != (dealerHealth == 0), $"seed {seed}");
+            Assert.IsFalse(flow.Next());
+            return;
+        }
+
+        Assert.Fail("정산에서 한쪽만 체력 0이 되는 시드를 찾지 못했다");
     }
 
     // 상단 정보 UI (RSP-43). 라운드 번호는 라운드 설정 값을 그대로 쓴다
@@ -331,7 +398,7 @@ public class GameFlowTests
 
             // 정산 중에는 아직 같은 카드 셔플이다
             Assert.AreEqual(1, flow.ShuffleCount);
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd)
             {
                 continue;
@@ -470,7 +537,7 @@ public class GameFlowTests
             StringAssert.StartsWith("정산:", lines[3]);
             StringAssert.StartsWith("조합:", lines[4]);
 
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd)
             {
                 Assert.AreEqual(5, lines.Count);
@@ -782,7 +849,7 @@ public class GameFlowTests
                 continue;
             }
 
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd)
             {
                 continue;
@@ -1074,7 +1141,7 @@ public class GameFlowTests
             flow.Next();
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
 
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
             sawNextShuffle = true;
@@ -1117,7 +1184,7 @@ public class GameFlowTests
             var records = new List<string>();
             flow.Logged += logs.Add;
             flow.JudgmentRecorded += records.Add;
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
             sawCarryOver = true;
@@ -1135,7 +1202,7 @@ public class GameFlowTests
             if (logs.Exists(log => log.StartsWith("딜러가 시계"))) { continue; }
 
             logs.Clear();
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
             Assert.IsFalse(logs.Exists(log => log.StartsWith("시계 이월")), $"seed {seed}");
@@ -1336,7 +1403,7 @@ public class GameFlowTests
             PlayOneShuffle(flow);
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
 
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
             PlayOneShuffle(flow);
@@ -1377,7 +1444,7 @@ public class GameFlowTests
 
             var logs = new List<string>();
             flow.Logged += logs.Add;
-            flow.Next();
+            FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
             sawCarryOver = true;

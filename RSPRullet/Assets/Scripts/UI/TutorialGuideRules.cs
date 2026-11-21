@@ -42,12 +42,13 @@ public static class TutorialGuideRules
     // 튜토리얼 종료 안내는 그 카드 셔플의 첫 판 결과를 보여 줄 때 지운다.
     // 그 밖에는 다음 안내가 나올 때까지 남긴다 (튜토리얼(1라운드) 세부 기획서 2-2장 표시 방식).
     // lastPhase는 단계 변경 알림의 이전 단계가 아니라 마지막으로 알림을 받은 단계다.
-    // 진행 흐름(GameFlow)은 카드 셔플 단계를 알리지 않아서, 정산 다음 알림의 이전 단계는 정산이 아니라 카드 셔플로 온다
+    // 진행 흐름(GameFlow)은 카드 셔플 단계를 알리지 않아서, [다음 카드 셔플] 다음 알림의 이전 단계는 다음 카드 셔플 대기가 아니라 카드 셔플로 온다.
+    // 정산 결과 표시에서 다음 카드 셔플 대기로 넘어갈 때는 정산 안내를 남긴다
     public static bool ShouldClearGuide(TutorialStep? currentStep, GamePhase lastPhase, GamePhase next)
     {
         if (currentStep == TutorialStep.TutorialEnd && next == GamePhase.ShowResult) { return true; }
 
-        return lastPhase == GamePhase.Settlement || next == GamePhase.RoundEnd;
+        return lastPhase == GamePhase.SettlementWait || next == GamePhase.RoundEnd;
     }
 
     // 자동 진행 화면이 다음으로 넘어가도 되는지. 원래 표시 시간이 지났고, 안내가 클릭을 기다리고 있지 않아야 한다.

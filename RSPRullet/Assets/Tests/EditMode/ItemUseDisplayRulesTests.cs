@@ -25,12 +25,15 @@ public class ItemUseDisplayRulesTests
     }
 
     // 정산: 두 번째 판에 쓴 시계만 다음 카드 셔플의 첫 번째 판까지 남긴다
-    [TestCase(ItemType.Coffee, false)]
-    [TestCase(ItemType.Magnifier, false)]
-    [TestCase(ItemType.Clock, true)]
-    public void Settlement_ShowsClockOnly(ItemType item, bool expected)
+    [TestCase(GamePhase.Settlement, ItemType.Coffee, false)]
+    [TestCase(GamePhase.Settlement, ItemType.Magnifier, false)]
+    [TestCase(GamePhase.Settlement, ItemType.Clock, true)]
+    [TestCase(GamePhase.SettlementWait, ItemType.Coffee, false)]
+    [TestCase(GamePhase.SettlementWait, ItemType.Magnifier, false)]
+    [TestCase(GamePhase.SettlementWait, ItemType.Clock, true)]
+    public void Settlement_ShowsClockOnly(GamePhase phase, ItemType item, bool expected)
     {
-        Assert.AreEqual(expected, ItemUseDisplayRules.IsShown(item, GamePhase.Settlement));
+        Assert.AreEqual(expected, ItemUseDisplayRules.IsShown(item, phase));
     }
 
     // 다음 판이 시작되면(뽑기·분배) 지난 판 기록이 남아 있어도 보여 주지 않는다
