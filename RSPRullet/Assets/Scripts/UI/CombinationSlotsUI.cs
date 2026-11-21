@@ -2,17 +2,15 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-// 한쪽(플레이어 또는 딜러)의 카드 조합 칸: 받은 순서대로 3칸, 칸 사이 이김·짐 화살표, 두 칸이 찼을 때 가능 패턴 안내
+// 한쪽(플레이어 또는 딜러)의 카드 조합 칸: 받은 순서대로 3칸, 칸 사이 이김·짐 화살표, 두 칸이 찼을 때 패턴 이름 안내
 // (UI·UX 화면 흐름 세부 기획서 5-6장 조합 칸, 4-2장 표시 범위).
-// 조합 칸 카드는 항상 공개된 카드라 앞면으로만 보여 주고 눈 표시를 붙이지 않는다.
 // 진행 흐름(GameFlow)의 단계·카드 변경 알림을 받을 때만 상태를 읽는다.
 // 이번 판 카드는 판 결과 확인이 끝나야 조합 칸으로 넘어오므로(CombinationSlotRules.GetShownCount) 카드 알림뿐 아니라 단계 알림도 받는다.
-// 정산 때의 패턴 이름 표시는 RSP-71, 카드가 조합 칸으로 옮겨지는 연출은 RSP-63에서 맡는다
 public class CombinationSlotsUI : MonoBehaviour
 {
-    private const string AttackHint = "공격형 풀세트 가능";
-    private const string HealHint = "회복형 풀세트 가능";
-    private const string TripleHint = "트리플 가능";
+    private const string AttackHint = "공격형 풀세트";
+    private const string HealHint = "회복형 풀세트";
+    private const string TripleHint = "트리플";
 
     [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private Side _side;
@@ -83,11 +81,19 @@ public class CombinationSlotsUI : MonoBehaviour
             }
         }
 
-        bool showsHint = shownCount == CombinationSlotRules.HintCardCount;
+        CombinationType possible = CombinationType.None;
+        if (shownCount == CombinationSlotRules.HintCardCount)
+        {
+            int firstShapePoolCount = _flow.Table.GetPoolCardCount(slots[0].Shape);
+            possible = CombinationSlotRules.GetPossibleCombination(slots[0].Shape, slots[1].Shape, firstShapePoolCount);
+        }
+
+        // 두 칸이 찼어도 이룰 수 있는 패턴이 없으면(카드풀에 2장뿐인 손 모양 두 장) 안내하지 않는다
+        bool showsHint = possible != CombinationType.None;
         _hintText.gameObject.SetActive(showsHint);
         if (showsHint)
         {
-            _hintText.text = GetHint(CombinationSlotRules.GetPossibleCombination(slots[0].Shape, slots[1].Shape));
+            _hintText.text = GetHint(possible);
         }
     }
 

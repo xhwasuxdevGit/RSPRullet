@@ -39,7 +39,18 @@ public class CombinationSlotRulesTests
     [TestCase(HandShape.Rock, HandShape.Scissors, CombinationType.HealFullSet)]
     public void PossibleCombination_FollowsFirstPair(HandShape first, HandShape second, CombinationType expected)
     {
-        Assert.AreEqual(expected, CombinationSlotRules.GetPossibleCombination(first, second));
+        Assert.AreEqual(expected, CombinationSlotRules.GetPossibleCombination(first, second, GameRules.TripleShapeCardCount));
+    }
+
+    // 카드풀에 2장뿐인 손 모양 두 장이면 세 번째 카드가 나올 수 없어 트리플을 안내하지 않는다.
+    // 풀세트는 카드풀 구성과 관계없이 첫 쌍의 방향으로 정한다 (UI·UX 화면 흐름 세부 기획서 5-6장 조합 칸)
+    [TestCase(HandShape.Rock, HandShape.Rock, GameRules.OtherShapeCardCount, CombinationType.None)]
+    [TestCase(HandShape.Rock, HandShape.Rock, GameRules.TripleShapeCardCount, CombinationType.Triple)]
+    [TestCase(HandShape.Scissors, HandShape.Rock, GameRules.OtherShapeCardCount, CombinationType.AttackFullSet)]
+    [TestCase(HandShape.Rock, HandShape.Scissors, GameRules.OtherShapeCardCount, CombinationType.HealFullSet)]
+    public void PossibleCombination_TripleNeedsThreeCardsInPool(HandShape first, HandShape second, int firstShapePoolCount, CombinationType expected)
+    {
+        Assert.AreEqual(expected, CombinationSlotRules.GetPossibleCombination(first, second, firstShapePoolCount));
     }
 
     // 안내한 패턴은 세 번째 카드에 따라 실제로 이룰 수 있어야 한다 (코어 규칙 상세 기획서 4-2장)
@@ -48,7 +59,7 @@ public class CombinationSlotRulesTests
     [TestCase(HandShape.Paper, HandShape.Rock)]
     public void PossibleCombination_IsReachableWithSomeThirdCard(HandShape first, HandShape second)
     {
-        CombinationType possible = CombinationSlotRules.GetPossibleCombination(first, second);
+        CombinationType possible = CombinationSlotRules.GetPossibleCombination(first, second, GameRules.TripleShapeCardCount);
 
         bool reachable = false;
         foreach (HandShape third in new[] { HandShape.Scissors, HandShape.Rock, HandShape.Paper })
