@@ -49,13 +49,15 @@ public static class CombinationSlotRules
     }
 
     // 두 칸이 찼을 때 세 번째 카드에 따라 이룰 수 있는 패턴. 두 장이 같으면 트리플,
-    // 다르면 첫 쌍의 방향이 풀세트 종류를 정한다 (CombinationRules.Judge와 같은 기준)
-    public static CombinationType GetPossibleCombination(HandShape first, HandShape second)
+    // 다르면 첫 쌍의 방향이 풀세트 종류를 정한다 (CombinationRules.Judge와 같은 기준).
+    // 두 장이 같아도 이번 카드풀에 그 손 모양이 3장 미만이면 세 번째 카드가 나올 수 없어 None을 돌려준다
+    // (UI·UX 화면 흐름 세부 기획서 5-6장 조합 칸). 남은 카드 수는 보지 않고 카드풀 구성만 본다
+    public static CombinationType GetPossibleCombination(HandShape first, HandShape second, int firstShapePoolCount)
     {
         switch (GetLink(first, second))
         {
             case MatchResult.Draw:
-                return CombinationType.Triple;
+                return firstShapePoolCount >= GameRules.TripleShapeCardCount ? CombinationType.Triple : CombinationType.None;
             case MatchResult.Win:
                 return CombinationType.AttackFullSet;
             default:
