@@ -56,11 +56,11 @@ public class PhaseButtonsUI : MonoBehaviour
         _itemDoneButton.onClick.AddListener(OnFinishItemPhase);
         _noItemButton.onClick.AddListener(OnFinishItemPhase);
         _nextRoundButton.onClick.AddListener(OnNextRound);
+        _takeMedicineButton.onClick.AddListener(OnTakeMedicine);
         _exchangeButton.onClick.AddListener(OnExchange);
         _keepCardsButton.onClick.AddListener(OnKeepCards);
 
-        // 응급약 복용과 다시하기는 동작을 연결하기 전까지 보이기만 하고 눌리지 않는다
-        ButtonLock.SetLocked(_takeMedicineButton, true);
+        // 다시하기는 동작을 연결하기 전까지 보이기만 하고 눌리지 않는다
         ButtonLock.SetLocked(_restartButton, true);
     }
 
@@ -75,6 +75,7 @@ public class PhaseButtonsUI : MonoBehaviour
         _itemDoneButton.onClick.RemoveListener(OnFinishItemPhase);
         _noItemButton.onClick.RemoveListener(OnFinishItemPhase);
         _nextRoundButton.onClick.RemoveListener(OnNextRound);
+        _takeMedicineButton.onClick.RemoveListener(OnTakeMedicine);
         _exchangeButton.onClick.RemoveListener(OnExchange);
         _keepCardsButton.onClick.RemoveListener(OnKeepCards);
     }
@@ -129,7 +130,12 @@ public class PhaseButtonsUI : MonoBehaviour
     {
         _runner.StartNextRound();
     }
-    
+
+    private void OnTakeMedicine()
+    {
+        _runner.TakeMedicine();
+    }
+
     private void OnFinishItemPhase()
     {
         _flow.FinishItemPhase();
