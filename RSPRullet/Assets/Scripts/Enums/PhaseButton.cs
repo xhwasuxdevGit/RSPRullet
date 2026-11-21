@@ -13,7 +13,6 @@ public enum PhaseButton
     NextShuffle = 1 << 5,   // 정산-02 다음 카드 셔플
     NextRound = 1 << 6,     // 종료-01 다음 라운드
     TakeMedicine = 1 << 7,  // 종료-02 응급약 복용
-    Restart = 1 << 8,       // 종료-03·04 다시하기
     Exchange = 1 << 9,      // 판-05 바꾼다 (돋보기 선택)
     KeepCards = 1 << 10     // 판-05 그대로 둔다 (돋보기 선택)
 }

@@ -52,14 +52,25 @@ public class PhaseButtonRulesTests
 
     [TestCase(true, false, PhaseButton.NextRound)]
     [TestCase(false, false, PhaseButton.TakeMedicine)]
-    [TestCase(true, true, PhaseButton.Restart)]
-    [TestCase(false, true, PhaseButton.Restart)]
+    [TestCase(true, true, PhaseButton.None)]
+    [TestCase(false, true, PhaseButton.None)]
     public void RoundEnd_ShowsButtonByResultAndRound(bool playerWonRound, bool isFinalRound, PhaseButton expected)
     {
         PhaseButton buttons = PhaseButtonRules.GetButtons(GamePhase.RoundEnd, Side.Player, hasUsableItem: false,
             isWaitingForMagnifierChoice: false, playerWonRound, isFinalRound);
 
         Assert.AreEqual(expected, buttons);
+    }
+
+    // 마지막 라운드가 끝나면 팝업만 누를 수 있도록 규칙·설정 버튼까지 잠근다
+    [TestCase(true)]
+    [TestCase(false)]
+    public void FinalRoundEnd_LocksInput(bool playerWonRound)
+    {
+        PhaseButton buttons = PhaseButtonRules.GetButtons(GamePhase.RoundEnd, Side.Player, hasUsableItem: false,
+            isWaitingForMagnifierChoice: false, playerWonRound, isFinalRound: true);
+
+        Assert.IsTrue(PhaseButtonRules.IsInputLocked(buttons));
     }
 
     // 판-07 승패 판정 표시를 포함한 자동 진행 단계는 버튼이 없다

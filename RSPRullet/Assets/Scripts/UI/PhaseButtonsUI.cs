@@ -18,7 +18,6 @@ public class PhaseButtonsUI : MonoBehaviour
     [SerializeField] private Button _nextShuffleButton;
     [SerializeField] private Button _nextRoundButton;
     [SerializeField] private Button _takeMedicineButton;
-    [SerializeField] private Button _restartButton;
     [SerializeField] private Button _exchangeButton;
     [SerializeField] private Button _keepCardsButton;
 
@@ -44,7 +43,6 @@ public class PhaseButtonsUI : MonoBehaviour
             (_nextShuffleButton, PhaseButton.NextShuffle),
             (_nextRoundButton, PhaseButton.NextRound),
             (_takeMedicineButton, PhaseButton.TakeMedicine),
-            (_restartButton, PhaseButton.Restart),
             (_exchangeButton, PhaseButton.Exchange),
             (_keepCardsButton, PhaseButton.KeepCards)
         };
@@ -59,9 +57,6 @@ public class PhaseButtonsUI : MonoBehaviour
         _takeMedicineButton.onClick.AddListener(OnTakeMedicine);
         _exchangeButton.onClick.AddListener(OnExchange);
         _keepCardsButton.onClick.AddListener(OnKeepCards);
-
-        // 다시하기는 동작을 연결하기 전까지 보이기만 하고 눌리지 않는다
-        ButtonLock.SetLocked(_restartButton, true);
     }
 
     private void OnDestroy()
