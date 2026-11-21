@@ -36,6 +36,9 @@ public class CardFaceRulesTests
     [TestCase(true, GamePhase.ItemOpponent, true)]
     [TestCase(false, GamePhase.ItemOpponent, false)]
     [TestCase(true, GamePhase.ShowResult, false)]
+    // 다음 판 분배 전까지 교환 여부에 앞 판 값이 남아 있어도 뽑기·분배 중에는 켜지 않는다
+    [TestCase(true, GamePhase.Draw, false)]
+    [TestCase(true, GamePhase.Distribute, false)]
     public void SwapMarker_ShownOnlyWhenSwappedBeforeJudgment(bool isSwapped, GamePhase phase, bool expected)
     {
         Assert.AreEqual(expected, CardFaceRules.ShowsSwapMarker(isSwapped, phase));

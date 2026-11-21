@@ -15,11 +15,12 @@ public static class CardFaceRules
         return card.KnownByDealer && IsBeforeJudgment(phase);
     }
 
-    // 교환 표시도 승패 판정 때 지운다. 판정 뒤에는 카드 내용이 보이므로 필요 없다.
-    // isSwapped는 분배 직후와 지금 카드 위치를 비교한 값(GameFlow.Table.IsMatchCardSwapped)이다. 두 번 교환해 원래 자리로 돌아오면 false다
+    // 교환 표시는 두 카드 슬롯 사이에 붙으므로 슬롯에 이번 판 카드가 있을 때만 켜고, 승패 판정 때 지운다. 판정 뒤에는 카드 내용이 보이므로 필요 없다.
+    // isSwapped는 분배 직후와 지금 카드 위치를 비교한 값(GameFlow.Table.IsMatchCardSwapped)이다. 두 번 교환해 원래 자리로 돌아오면 false다.
+    // 이 값은 다음 분배 때 다시 정해지므로 다음 판 뽑기·분배 중에는 앞 판 결과가 남아 있다. 그래서 슬롯 카드가 없는 뽑기·분배에서는 켜지 않는다
     public static bool ShowsSwapMarker(bool isSwapped, GamePhase phase)
     {
-        return isSwapped && IsBeforeJudgment(phase);
+        return isSwapped && HasSlotCards(phase) && IsBeforeJudgment(phase);
     }
 
     // 카드 슬롯에 이번 판 카드가 놓여 있는 단계: 분배가 끝난 뒤부터 승패 판정 표시(판-07)까지.
