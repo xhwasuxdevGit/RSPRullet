@@ -36,5 +36,5 @@ disable-model-invocation: false
 
 ## 개발 완료 후
 - 사용자에게 기술문서를 신규 작성하거나 기존 문서에 반영할지, Jira 문서화 이슈가 필요한지 질문한다 (`jira-workflow` Phase 10).
-- 승인받으면 `write-tech-doc` 스킬을 사용한다.
+- 승인받으면 새 세션을 열어 그 세션에서 `write-tech-doc` 스킬을 사용한다.
 - PR 생성만으로 Jira Done 처리하지 않는다.
