@@ -27,6 +27,18 @@ public class BannerRulesTests
         Assert.AreEqual(expected, BannerRules.IsShown(type, isFinalRound));
     }
 
+    // 라운드 전환 화면이 지울 때까지 남겨 두는 배너는 마지막 라운드가 아닌 라운드 승패뿐이다 (RSP-91)
+    [TestCase(BannerType.RoundWin, false, true)]
+    [TestCase(BannerType.RoundLose, false, true)]
+    [TestCase(BannerType.RoundWin, true, false)]
+    [TestCase(BannerType.RoundLose, true, false)]
+    [TestCase(BannerType.RoundStart, false, false)]
+    [TestCase(BannerType.MatchWin, false, false)]
+    public void IsHeldForTransition_HoldsOnlyNonFinalRoundResult(BannerType type, bool isFinalRound, bool expected)
+    {
+        Assert.AreEqual(expected, BannerRules.IsHeldForTransition(type, isFinalRound));
+    }
+
     [TestCase(BannerType.RoundStart, false)]
     [TestCase(BannerType.ShuffleStart, false)]
     [TestCase(BannerType.SettlementStart, false)]
