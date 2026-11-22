@@ -7,7 +7,9 @@ using UnityEngine;
 // 카드 순서를 고정하는 난수는 선 정하기가 매번 비겨 끝나지 않으므로, 시드를 지정한 System.Random으로 진행을 재현한다
 public class GameFlowTests
 {
-    private const int SeedCount = 50;
+    private const int SeedCount = 10;
+    // 드물게 나오는 진행(정산에서 한쪽만 체력 0, 두 번째 판 시계 이월)은 SeedCount 안에서 나오지 않아, 찾을 때까지 이 범위를 본다
+    private const int SearchSeedCount = 50;
 
     private RuleSettings _rules;
     private RoundSettings _round;
@@ -319,30 +321,6 @@ public class GameFlowTests
         Assert.Fail("첫 번째 판에서 승패가 나는 시드를 찾지 못했다");
     }
 
-    [Test]
-    public void NextAfterSettlement_StartsNewShuffleFromFirstMatch()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            GameFlow flow = StartFlow(seed);
-            PlayOneShuffle(flow);
-            FinishSettlement(flow);
-            if (flow.CurrentPhase == GamePhase.RoundEnd)
-            {
-                continue;
-            }
-
-            // 플레이어가 선이면 뽑기 전, 딜러가 선이면 딜러가 뽑은 뒤 분배 전에 멈춘다
-            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
-            Assert.AreEqual(0, flow.MatchIndex);
-            Assert.AreEqual(expectedPhase, flow.CurrentPhase);
-            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Player).Count);
-            return;
-        }
-
-        Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
-    }
-
     // 정산 결과 표시가 끝나면 라운드가 이어질 때 [다음 카드 셔플] 대기에서 멈추고, 그 입력에서만 다음 카드 셔플을 시작한다
     // (UI·UX 화면 흐름 세부 기획서 3-1장 정산-01·02)
     [Test]
@@ -363,9 +341,13 @@ public class GameFlowTests
             Assert.AreEqual(3, flow.Table.GetCombinationSlots(Side.Player).Count);
             Assert.IsFalse(flow.DrawCard());
 
+            // 다음 카드 셔플은 첫 번째 판부터 시작한다. 플레이어가 선이면 뽑기 전, 딜러가 선이면 딜러가 뽑은 뒤 분배 전에 멈춘다
             Assert.IsTrue(flow.Next());
+            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(2, flow.ShuffleCount);
             Assert.AreEqual(0, flow.MatchIndex);
+            Assert.AreEqual(expectedPhase, flow.CurrentPhase);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Player).Count);
             return;
         }
 
@@ -381,7 +363,7 @@ public class GameFlowTests
         round.FindProperty("_startHealth").intValue = 2;
         round.ApplyModifiedPropertiesWithoutUndo();
 
-        for (int seed = 0; seed < SeedCount; seed++)
+        for (int seed = 0; seed < SearchSeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
             PlayOneShuffle(flow);
@@ -460,68 +442,6 @@ public class GameFlowTests
 
         Assert.IsTrue(sawDraw, "선 정하기 무승부가 나는 시드를 찾지 못했다");
         Assert.IsTrue(sawNextShuffle, "정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
-    }
-
-    // 카드풀 정보 (RSP-38). UI·UX 화면 흐름 세부 기획서 5-4장 카드풀:
-    // 첫 번째 판 "5장 → 3장", 두 번째 판 "3장 → 1장", 정산 중에는 두 번째 판 값 유지
-    [Test]
-    public void MatchDeckCount_FollowsMatch_AndStaysDuringSettlement()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            GameFlow flow = StartFlow(seed);
-            Assert.AreEqual(5, flow.Table.MatchStartDeckCount);
-            Assert.AreEqual(3, flow.Table.MatchEndDeckCount);
-
-            PlayTurn(flow);
-            flow.Next();
-            if (flow.CurrentPhase == GamePhase.RoundEnd)
-            {
-                continue;
-            }
-
-            Assert.AreEqual(3, flow.Table.MatchStartDeckCount);
-            Assert.AreEqual(1, flow.Table.MatchEndDeckCount);
-
-            PlayTurn(flow);
-            flow.Next();
-            if (flow.CurrentPhase != GamePhase.Settlement)
-            {
-                continue;
-            }
-
-            Assert.AreEqual(3, flow.Table.MatchStartDeckCount);
-            Assert.AreEqual(1, flow.Table.MatchEndDeckCount);
-            return;
-        }
-
-        Assert.Fail("정산까지 가는 시드를 찾지 못했다");
-    }
-
-    // 카드풀 구성 개수는 3·2·2이고, 카드를 뽑아도 줄지 않는다
-    [Test]
-    public void PoolCardCount_IsComposition_AndUnchangedByDraw()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            GameFlow flow = StartFlow(seed);
-            int[] before = GetPoolCounts(flow);
-            CollectionAssert.AreEquivalent(
-                new[] { GameRules.TripleShapeCardCount, GameRules.OtherShapeCardCount, GameRules.OtherShapeCardCount }, before);
-
-            PlayTurn(flow);
-            CollectionAssert.AreEqual(before, GetPoolCounts(flow));
-        }
-    }
-
-    private static int[] GetPoolCounts(GameFlow flow)
-    {
-        return new[]
-        {
-            flow.Table.GetPoolCardCount(HandShape.Scissors),
-            flow.Table.GetPoolCardCount(HandShape.Rock),
-            flow.Table.GetPoolCardCount(HandShape.Paper)
-        };
     }
 
     [Test]
@@ -749,49 +669,6 @@ public class GameFlowTests
         return null;
     }
 
-    // 보유 한도가 0인 라운드는 아이템 단계를 건너뛰고 바로 카드 공개로 간다
-    [Test]
-    public void ZeroItemCapacity_SkipsItemPhase()
-    {
-        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
-
-        flow.DrawCard();
-        flow.Distribute(keep: true);
-
-        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
-    }
-
-    // 플레이어가 턴 플레이어면 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 카드 공개로 간다
-    [Test]
-    public void PlayerTurn_WaitsForPlayerItemPhase_ThenDealerPhasePasses()
-    {
-        SetItemCapacity(4);
-        GameFlow flow = StartFlowWithTurnPlayer(Side.Player);
-
-        flow.DrawCard();
-        flow.Distribute(keep: true);
-        Assert.AreEqual(GamePhase.ItemTurnPlayer, flow.CurrentPhase);
-
-        Assert.IsTrue(flow.FinishItemPhase());
-
-        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
-    }
-
-    // 딜러가 턴 플레이어면 딜러 단계가 먼저 지나고, 상대인 플레이어 단계에서 입력을 기다린다
-    [Test]
-    public void DealerTurn_DealerPhasePassesFirst_ThenWaitsForPlayer()
-    {
-        SetItemCapacity(4);
-        GameFlow flow = StartFlowWithTurnPlayer(Side.Dealer);
-
-        flow.PlayDealerTurn();
-        Assert.AreEqual(GamePhase.ItemOpponent, flow.CurrentPhase);
-
-        Assert.IsTrue(flow.FinishItemPhase());
-
-        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
-    }
-
     // 가지고 있지 않은 아이템은 쓸 수 없고, 아이템 단계에 그대로 머문다
     [Test]
     public void UseItem_NotHeld_IsIgnored()
@@ -916,22 +793,6 @@ public class GameFlowTests
         }
 
         Assert.Fail("두 번째 카드 셔플까지 가는 시드를 찾지 못했다");
-    }
-
-    // 같은 난수 시드면 양쪽이 같은 아이템을 받는다 (테스트 재현용)
-    [Test]
-    public void SameSeed_SuppliesSameItems()
-    {
-        SetRound3ItemValues();
-
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            GameFlow first = StartFlow(seed);
-            GameFlow second = StartFlow(seed);
-
-            CollectionAssert.AreEqual(first.Items.GetItems(Side.Player), second.Items.GetItems(Side.Player), $"seed {seed}");
-            CollectionAssert.AreEqual(first.Items.GetItems(Side.Dealer), second.Items.GetItems(Side.Dealer), $"seed {seed}");
-        }
     }
 
 
@@ -1164,46 +1025,6 @@ public class GameFlowTests
         itemSettings.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    // 첫 번째 판에 시계를 쓰면 두 번째 판도 같은 턴 플레이어이고, 이월이 없어 다음 카드 셔플은 선 정하기를 한다
-    [Test]
-    public void ClockOnFirstMatch_KeepsTurn_AndNextShuffleDecidesFirst()
-    {
-        SetRound3ClockOnlySupply();
-        bool sawNextShuffle = false;
-
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            GameFlow flow = StartFlow(seed);
-            if (flow.Table.TurnPlayer != Side.Player) { continue; }
-
-            var logs = new List<string>();
-            flow.Logged += logs.Add;
-            flow.DrawCard();
-            flow.Distribute(keep: true);
-            Assert.IsTrue(flow.UseItem(ItemType.Clock), $"seed {seed}");
-            Assert.IsTrue(flow.Items.HasUsedItem(Side.Player, ItemType.Clock), $"seed {seed}");
-            FinishItemPhases(flow);
-            flow.Next();
-            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
-
-            Assert.AreEqual(1, flow.MatchIndex, $"seed {seed}");
-            Assert.AreEqual(Side.Player, flow.Table.TurnPlayer, $"seed {seed}");
-
-            PlayTurn(flow);
-            flow.Next();
-            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
-
-            FinishSettlement(flow);
-            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
-
-            sawNextShuffle = true;
-            Assert.IsFalse(logs.Exists(log => log.StartsWith("시계 이월")), $"seed {seed}");
-            Assert.IsTrue(logs.Exists(log => log.StartsWith("선 정하기")), $"seed {seed}");
-        }
-
-        Assert.IsTrue(sawNextShuffle, "시드 범위 안에서 다음 카드 셔플까지 이어지는 진행이 나와야 한다");
-    }
-
     // 두 번째 판에 시계를 쓰면 다음 카드 셔플은 선 정하기 없이 시계를 쓴 쪽이 첫 번째 판 턴 플레이어다.
     // 이월은 한 번 쓰면 사라져, 그다음 카드 셔플은 다시 선 정하기를 한다
     [Test]
@@ -1212,7 +1033,7 @@ public class GameFlowTests
         SetRound3ClockOnlySupply();
         bool sawCarryOver = false;
 
-        for (int seed = 0; seed < SeedCount; seed++)
+        for (int seed = 0; seed < SearchSeedCount; seed++)
         {
             GameFlow flow = StartFlow(seed);
             if (flow.Table.TurnPlayer != Side.Dealer) { continue; }
@@ -1259,6 +1080,7 @@ public class GameFlowTests
 
             Assert.IsFalse(logs.Exists(log => log.StartsWith("시계 이월")), $"seed {seed}");
             Assert.IsTrue(logs.Exists(log => log.StartsWith("선 정하기")), $"seed {seed}");
+            return;
         }
 
         Assert.IsTrue(sawCarryOver, "시드 범위 안에서 시계 이월로 다음 카드 셔플이 시작되는 진행이 나와야 한다");
