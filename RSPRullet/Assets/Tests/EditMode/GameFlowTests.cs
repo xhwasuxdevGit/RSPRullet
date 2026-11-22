@@ -38,7 +38,15 @@ public class GameFlowTests
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
         flow.StartRound();
+        FinishShuffle(flow);
         return flow;
+    }
+
+    // 카드 셔플은 카드풀 공개 → 카드 섞기 연출 → 선 정하기 결과에서 화면의 Next()를 기다리므로,
+    // 표시·연출이 끝난 것으로 보고 첫 번째 판의 입력 대기 지점까지 넘긴다. 선 정하기가 비기면 다시 섞은 카드 셔플도 넘긴다
+    private static void FinishShuffle(GameFlow flow)
+    {
+        while (flow.CurrentPhase == GamePhase.StartCardDeal || flow.CurrentPhase == GamePhase.DecideFirst) { flow.Next(); }
     }
 
     // 판 결과 확인 지점까지 진행한다. 딜러 차례면 고민 중 대기가 끝난 것으로 보고 딜러가 행동하고, 플레이어 차례면 뽑고 가진다로 분배한다
@@ -89,11 +97,14 @@ public class GameFlowTests
         flow.Next();
     }
 
-    // 정산 결과 표시를 끝내고(표시 시간이 지난 것으로 본다), 라운드가 이어지면 [다음 카드 셔플]까지 눌러 다음 카드 셔플을 시작한다
+    // 정산 결과 표시를 끝내고(표시 시간이 지난 것으로 본다), 라운드가 이어지면 [다음 카드 셔플]까지 눌러 다음 카드 셔플의 첫 번째 판까지 간다
     private static void FinishSettlement(GameFlow flow)
     {
         flow.Next();
-        if (flow.CurrentPhase == GamePhase.SettlementWait) { flow.Next(); }
+        if (flow.CurrentPhase != GamePhase.SettlementWait) { return; }
+
+        flow.Next();
+        FinishShuffle(flow);
     }
 
     [Test]
@@ -266,6 +277,55 @@ public class GameFlowTests
         }
     }
 
+    // 카드 셔플은 카드풀 공개 → 카드 섞기 연출 → 선 정하기 결과에서 멈추고 Next()로 넘어간다 (연출·아트·사운드 세부 기획서 3-1장).
+    // 시작 카드는 카드풀 공개가 끝난 뒤 나눠 주고, 선 정하기 기록은 카드 섞기 연출(시작 카드 이동)이 끝난 뒤에 남긴다
+    [Test]
+    public void Shuffle_StopsAtCardPool_ShuffleAnimation_AndDecideFirst()
+    {
+        bool sawDecided = false;
+
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
+            var lines = new List<string>();
+            flow.JudgmentRecorded += lines.Add;
+            flow.StartRound();
+
+            // 카드풀 공개: 시작 카드 전이고 판 입력은 받지 않는다
+            Assert.AreEqual(GamePhase.StartCardDeal, flow.CurrentPhase);
+            Assert.IsTrue(flow.IsShowingCardPool);
+            Assert.AreEqual(0, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(0, flow.Table.GetCombinationSlots(Side.Dealer).Count);
+            Assert.IsFalse(flow.DrawCard());
+
+            // 카드 섞기 연출 대기: 시작 카드를 나눠 줬지만 선 정하기 기록은 아직 없다
+            Assert.IsTrue(flow.Next());
+            Assert.AreEqual(GamePhase.StartCardDeal, flow.CurrentPhase);
+            Assert.IsFalse(flow.IsShowingCardPool);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Player).Count);
+            Assert.AreEqual(1, flow.Table.GetCombinationSlots(Side.Dealer).Count);
+            Assert.AreEqual(0, lines.Count);
+
+            // 선 정하기 결과 표시: 기록이 남고 첫 번째 판은 아직 시작하지 않는다
+            Assert.IsTrue(flow.Next());
+            Assert.AreEqual(GamePhase.DecideFirst, flow.CurrentPhase);
+            Assert.AreEqual(1, lines.Count);
+            StringAssert.StartsWith("선 정하기:", lines[0]);
+            Assert.IsFalse(flow.DrawCard());
+
+            Assert.IsTrue(flow.Next());
+            if (flow.CurrentPhase == GamePhase.StartCardDeal) { continue; }
+
+            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
+            Assert.AreEqual(expectedPhase, flow.CurrentPhase, $"seed {seed}");
+            Assert.AreEqual(0, flow.MatchIndex);
+            sawDecided = true;
+        }
+
+        Assert.IsTrue(sawDecided, "선 정하기에서 선이 정해지는 시드를 찾지 못했다");
+    }
+
+    // 선 정하기가 비기면 결과 표시 뒤 카드풀 공개부터 다시 하고(셔플 번호는 그대로), 다시 섞은 카드풀에서 시작 카드부터 새로 받아 첫 번째 판을 시작한다
     [Test]
     public void DecideFirstDraw_Reshuffles_AndStartsFirstMatch()
     {
@@ -273,17 +333,30 @@ public class GameFlowTests
         {
             var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
             var logs = new List<string>();
+            var lines = new List<string>();
             flow.Logged += logs.Add;
+            flow.JudgmentRecorded += lines.Add;
+            flow.JudgmentRecordCleared += lines.Clear;
             flow.StartRound();
+            flow.Next();
+            flow.Next();
 
             if (!logs.Exists(log => log.Contains("무승부")))
             {
                 continue;
             }
 
-            // 다시 섞은 카드풀에서 시작 카드부터 새로 받아 첫 번째 판을 시작한다
+            Assert.AreEqual(GamePhase.DecideFirst, flow.CurrentPhase);
+            Assert.IsTrue(flow.Next());
+            Assert.AreEqual(GamePhase.StartCardDeal, flow.CurrentPhase);
+            Assert.IsTrue(flow.IsShowingCardPool);
+            Assert.AreEqual(1, flow.ShuffleCount);
+            Assert.AreEqual(0, lines.Count);
+
+            FinishShuffle(flow);
+            GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(0, flow.MatchIndex);
-            Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase);
+            Assert.AreEqual(expectedPhase, flow.CurrentPhase);
             Assert.AreNotEqual(
                 flow.Table.GetCombinationSlots(Side.Player)[0].Shape,
                 flow.Table.GetCombinationSlots(Side.Dealer)[0].Shape);
@@ -343,6 +416,7 @@ public class GameFlowTests
 
             // 다음 카드 셔플은 첫 번째 판부터 시작한다. 플레이어가 선이면 뽑기 전, 딜러가 선이면 딜러가 뽑은 뒤 분배 전에 멈춘다
             Assert.IsTrue(flow.Next());
+            FinishShuffle(flow);
             GamePhase expectedPhase = flow.Table.TurnPlayer == Side.Player ? GamePhase.Draw : GamePhase.Distribute;
             Assert.AreEqual(2, flow.ShuffleCount);
             Assert.AreEqual(0, flow.MatchIndex);
@@ -418,6 +492,7 @@ public class GameFlowTests
                 }
             };
             flow.StartRound();
+            FinishShuffle(flow);
 
             Assert.AreEqual(1, flow.ShuffleCount);
             sawDraw |= drawCount > 0;
@@ -493,6 +568,7 @@ public class GameFlowTests
             flow.JudgmentRecordCleared += lines.Clear;
 
             flow.StartRound();
+            FinishShuffle(flow);
             Assert.AreEqual(1, lines.Count);
             StringAssert.StartsWith("선 정하기:", lines[0]);
             StringAssert.DoesNotContain("비김", lines[0]);
@@ -541,6 +617,7 @@ public class GameFlowTests
             };
 
             flow.StartRound();
+            FinishShuffle(flow);
             CollectionAssert.DoesNotContain(phases, GamePhase.CardShuffle);
             Assert.AreEqual(flow.CurrentPhase, phases[phases.Count - 1]);
 
@@ -598,6 +675,7 @@ public class GameFlowTests
             flow.DeckChanged += () => count++;
 
             flow.StartRound();
+            FinishShuffle(flow);
             Assert.AreEqual(1, count);
 
             PlayTurn(flow);
@@ -746,6 +824,7 @@ public class GameFlowTests
             var logs = new List<string>();
             flow.Logged += logs.Add;
             flow.StartRound();
+            FinishShuffle(flow);
 
             if (!logs.Exists(log => log.Contains("무승부")))
             {
@@ -1274,6 +1353,7 @@ public class GameFlowTests
             };
 
             flow.StartRound();
+            FinishShuffle(flow);
             PlayOneShuffle(flow);
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
 

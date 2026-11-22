@@ -56,6 +56,8 @@ public class SettingsAssetTests
 
         Assert.IsNotNull(settings);
         Assert.AreEqual(1.6f, settings.MatchResultSeconds, 0.0001f);
+        Assert.AreEqual(1.5f, settings.CardPoolSeconds, 0.0001f);
+        Assert.AreEqual(1.0f, settings.DecideFirstSeconds, 0.0001f);
         Assert.AreEqual(1.5f, settings.DealerThinkingMinSeconds, 0.0001f);
         Assert.AreEqual(2.0f, settings.DealerThinkingMaxSeconds, 0.0001f);
     }
@@ -71,6 +73,7 @@ public class SettingsAssetTests
         Assert.AreEqual(0.2f, settings.CardMoveDelaySeconds, 0.0001f);
         Assert.AreEqual(0.45f, settings.CardFlipSeconds, 0.0001f);
         Assert.AreEqual(0.6f, settings.CardSwapSeconds, 0.0001f);
+        Assert.AreEqual(0.7f, settings.DeckShuffleSeconds, 0.0001f);
         Assert.AreEqual(0.6f, settings.CardLiftSeconds, 0.0001f);
         // 들어 올리기 기울기는 기획서 시작값 60°에서 Play 검증(RSP-63)으로 낮춘 값이다
         Assert.AreEqual(30f, settings.CardLiftTiltDegrees, 0.0001f);

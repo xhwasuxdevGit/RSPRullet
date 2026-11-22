@@ -72,14 +72,22 @@ public class TutorialGuideRulesTests
     }
 
     // 안내가 바뀔 때마다 띄운 단계를 기록한다. 라운드 시작 전에 만들어야 첫 카드풀 안내부터 받는다.
-    // autoClick이면 클릭 대기 안내가 뜨는 즉시 클릭해, 대기열의 안내가 모두 차례로 뜨게 한다
+    // autoClick이면 클릭 대기 안내가 뜨는 즉시 클릭해, 대기열의 안내가 모두 차례로 뜨게 한다.
+    // 카드 셔플은 클릭을 기다리지 않고 첫 번째 판까지 넘겨, 클릭 대기 중에 나온 안내가 대기열에 쌓이는 경우도 확인한다
     private (GameFlow flow, TutorialGuide guide, List<TutorialStep> shown) StartRound(int seed, bool autoClick = false)
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
         var guide = new TutorialGuide(flow, _tutorialSettings);
         List<TutorialStep> shown = RecordShownSteps(guide, autoClick);
         flow.StartRound();
+        FinishShuffle(flow);
         return (flow, guide, shown);
+    }
+
+    // 카드 셔플의 카드풀 공개·카드 섞기 연출·선 정하기 결과는 화면의 Next()를 기다리므로, 끝난 것으로 보고 첫 번째 판까지 넘긴다
+    private static void FinishShuffle(GameFlow flow)
+    {
+        while (flow.CurrentPhase == GamePhase.StartCardDeal || flow.CurrentPhase == GamePhase.DecideFirst) { flow.Next(); }
     }
 
     // 변경 알림은 클릭 대기 여부만 바뀌어도 오므로, 안내 단계가 새로 바뀐 때만 기록한다
@@ -130,6 +138,7 @@ public class TutorialGuideRulesTests
                 flow.CurrentPhase == GamePhase.SettlementWait)
             {
                 flow.Next();
+                FinishShuffle(flow);
                 continue;
             }
 
@@ -262,6 +271,7 @@ public class TutorialGuideRulesTests
             bool isDraw = false;
             flow.Logged += message => isDraw |= message.Contains("선 정하기 무승부");
             flow.StartRound();
+            FinishShuffle(flow);
             if (!isDraw) { continue; }
 
             CollectionAssert.AreEqual(new[] { TutorialStep.CardPool, TutorialStep.DecideFirst }, shown.GetRange(0, 2), $"seed {seed}");
@@ -270,6 +280,28 @@ public class TutorialGuideRulesTests
         }
 
         Assert.IsTrue(checkedDraw, "선 정하기가 비기는 시드가 필요하다");
+    }
+
+    // 카드 셔플 화면의 카드풀 안내와 선 정하기 안내는 그 화면이 멈춘 동안 떠서 클릭을 기다린다.
+    // 씬 연결은 클릭을 기다리는 동안 카드풀 공개와 선 정하기 결과를 넘기지 않는다 (튜토리얼(1라운드) 세부 기획서 2-3장)
+    [Test]
+    public void FirstRound_ShuffleGuides_WaitForClickWhileScreenStops()
+    {
+        var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(0));
+        var guide = new TutorialGuide(flow, _tutorialSettings);
+        flow.StartRound();
+
+        Assert.IsTrue(flow.IsShowingCardPool);
+        Assert.AreEqual(TutorialStep.CardPool, guide.CurrentEntry.Step);
+        Assert.IsTrue(guide.IsWaitingForClick);
+        guide.Confirm();
+
+        // 카드풀 공개 → 카드 섞기 연출이 끝나면 선 정하기 결과에서 선 정하기 안내가 뜬다
+        flow.Next();
+        flow.Next();
+        Assert.AreEqual(GamePhase.DecideFirst, flow.CurrentPhase);
+        Assert.AreEqual(TutorialStep.DecideFirst, guide.CurrentEntry.Step);
+        Assert.IsTrue(guide.IsWaitingForClick);
     }
 
     // 1라운드가 아니면 안내를 띄우지 않고 클릭도 기다리지 않는다 (튜토리얼(1라운드) 세부 기획서 2-1장 범위)
@@ -396,7 +428,11 @@ public class TutorialGuideRulesTests
             Assert.AreEqual(TutorialStep.Settlement, guide.CurrentEntry.Step, $"seed {seed}");
             flow.Next();
 
+            // 종료 안내는 카드풀 공개에서 뜨고, 클릭할 때까지 카드풀 공개가 넘어가지 않도록 클릭을 기다린다
+            Assert.IsTrue(flow.IsShowingCardPool, $"seed {seed}");
             Assert.AreEqual(TutorialStep.TutorialEnd, guide.CurrentEntry.Step, $"seed {seed}");
+            Assert.IsTrue(guide.IsWaitingForClick, $"seed {seed}");
+            FinishShuffle(flow);
 
             // 첫 판 동안은 종료 안내가 남아 있다
             steps = 0;

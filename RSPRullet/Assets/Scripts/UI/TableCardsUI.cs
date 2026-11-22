@@ -377,7 +377,10 @@ public class TableCardsUI : MonoBehaviour
         return slots[slots.Count - 1];
     }
 
-    // 카드 앞면 그림은 이 컴포넌트에만 연결해 두고, 조합 칸(CombinationSlotsUI)도 여기서 받아 쓴다
+    // 카드 뒷면 그림. 카드 셔플 연출(CardShuffleUI)이 펼친 카드를 뒤집을 때 받아 쓴다
+    public Sprite CardBackSprite => _cardBack;
+
+    // 카드 앞면 그림은 이 컴포넌트에만 연결해 두고, 조합 칸(CombinationSlotsUI)과 카드 셔플 연출(CardShuffleUI)도 여기서 받아 쓴다
     public Sprite GetFrontSprite(HandShape shape)
     {
         switch (shape)

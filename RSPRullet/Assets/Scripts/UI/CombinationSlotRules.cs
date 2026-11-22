@@ -12,9 +12,12 @@ public static class CombinationSlotRules
     private const int FullCardCount = 3;
 
     // 분배하는 순간 이번 판 카드가 조합 칸 목록 끝에 들어가지만, 승패 판정 표시(판-07)가 끝날 때까지는
-    // 카드 슬롯에 놓여 있으므로 조합 칸에서는 빼고 보여 준다 (CardFaceRules.HasSlotCards)
+    // 카드 슬롯에 놓여 있으므로 조합 칸에서는 빼고 보여 준다 (CardFaceRules.HasSlotCards).
+    // 시작 카드는 나눠 준 뒤에도 카드 섞기 연출로 조합 칸까지 이동하는 동안 보여 주지 않고, 선 정하기 단계부터 보여 준다 (CardShuffleUI)
     public static int GetShownCount(int slotCount, GamePhase phase)
     {
+        if (phase == GamePhase.StartCardDeal) { return 0; }
+
         if (slotCount > 0 && CardFaceRules.HasSlotCards(phase))
         {
             return slotCount - 1;

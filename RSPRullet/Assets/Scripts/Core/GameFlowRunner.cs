@@ -17,6 +17,14 @@ public class GameFlowRunner : MonoBehaviour
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
     [SerializeField] private TutorialSettings _tutorialSettings;
 
+    // 카드풀을 공개하는 중인지와 남은 시간
+    private bool _isShowingCardPool;
+    private float _cardPoolTimeLeft;
+
+    // 선 정하기 결과를 보여 주는 중인지와 남은 시간
+    private bool _isShowingDecideFirst;
+    private float _decideFirstTimeLeft;
+
     // 판 결과를 보여 주는 중인지와 남은 시간
     private bool _isShowingMatchResult;
     private float _matchResultTimeLeft;
@@ -117,10 +125,68 @@ public class GameFlowRunner : MonoBehaviour
 
     private void Update()
     {
+        UpdateCardPool();
+        UpdateDecideFirst();
         UpdateDealerThinking();
         UpdateDealerItemWait();
         UpdateMatchResult();
         UpdateSettlement();
+    }
+
+    // 카드 셔플의 카드풀 공개는 버튼 없이 표시 시간이 지나면 시작 카드를 나눠 카드 섞기 연출로 넘어간다
+    // (연출·아트·사운드 세부 기획서 3-1장 카드 셔플 연출, UI·UX 화면 흐름 세부 기획서 3-2장 읽는 시간).
+    // 카드 섞기 연출이 끝났을 때의 진행은 카드 셔플 화면(CardShuffleUI)이 넣는다.
+    // 카드풀 안내나 튜토리얼 종료 안내가 클릭을 기다리면 표시 시간이 지나도 플레이어가 클릭할 때까지 기다린다 (튜토리얼(1라운드) 세부 기획서 2-3장)
+    private void UpdateCardPool()
+    {
+        if (!Flow.IsShowingCardPool)
+        {
+            _isShowingCardPool = false;
+            return;
+        }
+
+        if (!_isShowingCardPool)
+        {
+            _isShowingCardPool = true;
+            _cardPoolTimeLeft = _displayTimeSettings.CardPoolSeconds;
+            return;
+        }
+
+        _cardPoolTimeLeft -= Time.deltaTime;
+        if (!TutorialGuideRules.CanAdvance(_cardPoolTimeLeft <= 0f, Guide.IsWaitingForClick))
+        {
+            return;
+        }
+
+        _isShowingCardPool = false;
+        Flow.Next();
+    }
+
+    // 선 정하기 결과는 버튼 없이 표시 시간이 지나면 첫 번째 판으로, 비겼으면 카드풀 공개로 넘어간다.
+    // 선 정하기 안내가 클릭을 기다리면 표시 시간이 지나도 플레이어가 클릭할 때까지 기다린다 (튜토리얼(1라운드) 세부 기획서 2-3장)
+    private void UpdateDecideFirst()
+    {
+        if (Flow.CurrentPhase != GamePhase.DecideFirst)
+        {
+            _isShowingDecideFirst = false;
+            return;
+        }
+
+        if (!_isShowingDecideFirst)
+        {
+            _isShowingDecideFirst = true;
+            _decideFirstTimeLeft = _displayTimeSettings.DecideFirstSeconds;
+            return;
+        }
+
+        _decideFirstTimeLeft -= Time.deltaTime;
+        if (!TutorialGuideRules.CanAdvance(_decideFirstTimeLeft <= 0f, Guide.IsWaitingForClick))
+        {
+            return;
+        }
+
+        _isShowingDecideFirst = false;
+        Flow.Next();
     }
 
     // 딜러는 대기 시간이 지나야 뽑아 둔 카드를 분배한다 (연출·아트·사운드 세부 기획서 7-3장).

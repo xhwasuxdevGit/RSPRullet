@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-// 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고, 플레이어 입력과 딜러 고민 중 대기, 딜러 아이템 대기에서만 멈춘다.
+// 라운드 하나의 진행 흐름. 진행 단계, 테이블 상태, 체력, 딜러 AI, 아이템 상태를 묶고,
+// 플레이어 입력, 딜러 고민 중 대기, 딜러 아이템 대기, 화면 표시·연출 대기(카드풀 공개, 카드 섞기 연출, 선 정하기 결과, 카드 공개, 판·정산 결과)에서 멈춘다.
 // 이 클래스는 흐름(단계 진행, 입력 확인, 지급·다시 섞기·아이템 단계를 시작하는 시점, 기록·로그를 남기는 시점)만 정한다.
 // 상태 계산과 변경 알림은 상태를 가진 클래스(TableState, HealthState, ItemState)가 맡고, 이 클래스는 알림을 화면에 넘긴다.
 // 아이템 단계 안의 진행(차례, 아이템 입력, 돋보기 선택 대기), 지급, 시계 효과와 이월은 아이템 진행(ItemPhaseFlow)이 맡는다.
@@ -16,6 +17,9 @@ public class GameFlow
     
     // 카드 셔플마다 새로 만든다
     private TableState _table;
+
+    // 선 정하기 결과. 결과를 보여 주는 동안 멈췄다가 Next()에서 첫 번째 판으로 갈지 다시 섞을지 정할 때 쓴다
+    private bool _isFirstTurnDecided;
 
     public event Action<string> Logged;
     public event Action<string> JudgmentRecorded;
@@ -48,6 +52,10 @@ public class GameFlow
     public IItemView Items => _items;
 
     public bool IsWaitingForDealer => CurrentPhase == GamePhase.Distribute && _table.TurnPlayer == Side.Dealer;
+
+    // 이번 카드풀 구성을 보여 주는 중인지. 시작 카드 배분 단계에서 시작 카드를 나눠 주기 전이다.
+    // 시작 카드를 나눠 준 뒤에도 같은 단계지만, 그때는 화면의 카드 섞기 연출을 기다리는 중이다
+    public bool IsShowingCardPool => CurrentPhase == GamePhase.StartCardDeal && _table.GetCombinationSlots(Side.Player).Count == 0;
 
     // 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 그대로 둘지 고르는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
     public bool IsWaitingForMagnifierChoice => _itemPhase.IsWaitingForMagnifierChoice;
@@ -83,7 +91,7 @@ public class GameFlow
     // 아이템 칸의 회색 표시에 쓴다. HasUsableItem과 같은 이유로 이 클래스에 둔다
     public bool CanUseItem(Side side, ItemType item) => _items.CanUseItem(side, item, _table.TurnPlayer);
 
-    // 라운드 시작 → 첫 번째 카드 셔플 → 첫 번째 판의 입력 대기 지점까지 진행한다
+    // 라운드 시작 → 첫 번째 카드 셔플의 카드풀 공개까지 진행한다
     public bool StartRound()
     {
         // 본문이 한 줄인 if는 한 줄로 쓴다. 중괄호는 남겨, 줄을 더할 때 if 밖으로 빠지지 않게 한다
@@ -152,12 +160,19 @@ public class GameFlow
         return true;
     }
     
-    // 카드 공개 연출이 끝났을 때(테이블 카드 표시가 넣음), 판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음),
-    // [다음 카드 셔플]을 눌렀을 때 받는다
+    // 카드 공개 연출·카드 섞기 연출이 끝났을 때(화면이 넣음),
+    // 카드풀 공개·선 정하기 결과·판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음), [다음 카드 셔플]을 눌렀을 때 받는다
     public bool Next()
     {
         switch (CurrentPhase)
         {
+            case GamePhase.StartCardDeal:
+                if (IsShowingCardPool) { DealStartCards(); }
+                else { FinishStartCardDeal(); }
+                return true;
+            case GamePhase.DecideFirst:
+                FinishDecideFirst();
+                return true;
             case GamePhase.Reveal:
                 JudgeMatch();
                 return true;
@@ -176,44 +191,64 @@ public class GameFlow
         }
     }
 
-    // 카드풀 생성 → 시작 카드 → 선 정하기. 선 정하기에서 비기면 카드풀부터 다시 만든다
+    // 카드 셔플 시작. 셔플 지급 뒤 카드풀을 만들어 공개한다.
+    // 카드 셔플은 카드풀 공개 → 카드 섞기 연출 → 선 정하기 결과의 세 곳에서 멈추고, 화면이 Next()를 넣으면 넘어간다
+    // (연출·아트·사운드 세부 기획서 3-1장 카드 셔플 연출)
     private void StartShuffle()
     {
         ShuffleCount++;
-        
+
         _itemPhase.SupplyShuffleItems();
+        ShowCardPool();
+    }
 
-        bool isDecided;
-        do
+    // 새 카드풀을 만들어 공개하고 멈춘다. 선 정하기에서 비겨 다시 섞을 때도 여기부터 다시 한다(셔플 번호와 지급은 그대로)
+    private void ShowCardPool()
+    {
+        JudgmentRecordCleared?.Invoke();
+        CreateTable();
+        _phaseMachine.CompleteCardShuffle();
+    }
+
+    // 카드풀 공개가 끝나면 시작 카드를 나눠 주고, 화면의 카드 섞기 연출(섞기 → 시작 카드 이동)이 끝날 때까지 멈춘다
+    private void DealStartCards()
+    {
+        _table.DealStartCards();
+        Log(FlowLogText.GetStartCards(_table.GetStartCard(Side.Player).Shape, _table.GetStartCard(Side.Dealer).Shape));
+    }
+
+    // 카드 섞기 연출이 끝나면 선을 정하고 결과를 보여 주는 동안 멈춘다.
+    // 선 정하기 기록은 시작 카드가 조합 칸에 도착한 이 시점에 남긴다
+    private void FinishStartCardDeal()
+    {
+        // 시계 이월이 있으면 시계를 쓴 쪽이 선이므로 선 정하기 없이 첫 번째 판으로 간다 (아이템 세부 기획서 5장 I6)
+        bool hasClockCarryOver = _itemPhase.ApplyClockCarryOver(_table);
+        _phaseMachine.CompleteStartCardDeal(hasClockCarryOver);
+        if (hasClockCarryOver)
         {
-            JudgmentRecordCleared?.Invoke();
-            CreateTable();
-            _phaseMachine.CompleteCardShuffle();
-
-            _table.DealStartCards();
-            HandShape playerStartShape = _table.GetStartCard(Side.Player).Shape;
-            HandShape dealerStartShape = _table.GetStartCard(Side.Dealer).Shape;
-            Log(FlowLogText.GetStartCards(playerStartShape, dealerStartShape));
-
-            // 시계 이월이 있으면 시계를 쓴 쪽이 선이므로 선 정하기 없이 첫 번째 판으로 간다 (아이템 세부 기획서 5장 I6)
-            bool hasClockCarryOver = _itemPhase.ApplyClockCarryOver(_table);
-            _phaseMachine.CompleteStartCardDeal(hasClockCarryOver);
-            if (hasClockCarryOver)
-            {
-                Log($"시계 이월로 선 정하기 생략: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
-                break;
-            }
-
-            isDecided = _table.DecideFirstTurnPlayer();
-            Record(JudgmentRecordRules.GetFirstTurnText(playerStartShape, dealerStartShape));
-            _phaseMachine.CompleteDecideFirst(isDraw: !isDecided);
-            Log(isDecided ? $"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선" : "선 정하기 무승부: 다시 섞습니다");
+            Log($"시계 이월로 선 정하기 생략: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
+            BeginMatch();
+            return;
         }
-        while (!isDecided);
+
+        _isFirstTurnDecided = _table.DecideFirstTurnPlayer();
+        Record(JudgmentRecordRules.GetFirstTurnText(_table.GetStartCard(Side.Player).Shape, _table.GetStartCard(Side.Dealer).Shape));
+        Log(_isFirstTurnDecided ? $"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선" : "선 정하기 무승부: 다시 섞습니다");
+    }
+
+    // 선 정하기 결과 표시가 끝나면 첫 번째 판을 시작한다. 비겼으면 카드풀부터 다시 만든다 (코어 규칙 상세 기획서 6장 예외 E1)
+    private void FinishDecideFirst()
+    {
+        _phaseMachine.CompleteDecideFirst(isDraw: !_isFirstTurnDecided);
+        if (!_isFirstTurnDecided)
+        {
+            ShowCardPool();
+            return;
+        }
 
         BeginMatch();
     }
-    
+
     private void CreateTable()
     {
         if (_table != null) { _table.Changed -= OnTableChanged; }
