@@ -8,6 +8,10 @@ using UnityEngine.SceneManagement;
 [DefaultExecutionOrder(-1)]
 public class GameFlowRunner : MonoBehaviour
 {
+    // 게임 씬을 떠날 때 불러올 씬 이름. 빌드 목록(File > Build Profiles)에 같은 이름의 씬이 있어야 한다 (RSP-80)
+    private const string TitleSceneName = "Title";
+    private const string EndingSceneName = "Ending";
+
     [SerializeField] private RuleSettings _ruleSettings;
 
     // 1·2·3라운드 순서로 넣는다. 지금 라운드 번호에 맞는 설정으로 GameFlow를 만든다
@@ -52,6 +56,13 @@ public class GameFlowRunner : MonoBehaviour
     // (Project Settings > Editor > Enter Play Mode Settings를 바꾸면 Play를 새로 시작해도 값이 남을 수 있다)
     private static RoundProgress _progress = new RoundProgress();
 
+    // 다음 라운드·응급약 복용·다시하기로 게임 씬을 다시 불러오는 중인지 (RSP-80).
+    // 다시 불러온 씬에서는 1라운드 시작 전 딜러 대사를 띄우지 않는다. 인트로에서 들어오거나 Play를 바로 시작하면 false라 대사를 띄운다
+    private static bool _isReloadingScene;
+
+    // 이번 씬에서 1라운드 시작 배너 뒤에 딜러 대사를 띄울지 (RSP-80)
+    private bool _showsPrologue;
+
     public GameFlow Flow { get; private set; }
 
     // 1라운드 튜토리얼 안내. 말풍선 화면은 지금 안내를 읽고 클릭을 넘기며, 이 쪽은 클릭을 기다리는 동안 자동 진행 화면을 넘기지 않는다
@@ -69,10 +80,18 @@ public class GameFlowRunner : MonoBehaviour
         RoundSettings round = _roundSettings[_progress.RoundNumber - 1];
         Flow = new GameFlow(_ruleSettings, round, _dealerSettings, _itemSettings, new System.Random());
         Guide = new TutorialGuide(Flow, _tutorialSettings);
+
+        _showsPrologue = !_isReloadingScene && _progress.RoundNumber == TutorialGuideRules.TutorialRoundNumber;
+        _isReloadingScene = false;
     }
 
+    // 게임 씬에 처음 들어온 1라운드면 라운드를 시작하기 전에 딜러 대사를 안내 대기열에 먼저 넣는다.
+    // 말풍선은 라운드 시작 배너가 사라진 뒤 보이고, 카드풀 안내는 대사 뒤에 이어진다.
+    // 카드풀 공개는 안내 클릭을 기다리는 동안 넘어가지 않으므로 대사를 다 넘길 때까지 카드풀이 놓인 테이블에서 멈춘다 (UpdateCardPool)
     private void Start()
     {
+        if (_showsPrologue) { Guide.ShowPrologue(); }
+
         Flow.StartRound();
     }
 
@@ -92,7 +111,7 @@ public class GameFlowRunner : MonoBehaviour
             return false;
         }
 
-        SceneManager.LoadScene(gameObject.scene.buildIndex);
+        ReloadScene();
         return true;
     }
 
@@ -131,8 +150,36 @@ public class GameFlowRunner : MonoBehaviour
         return true;
     }
 
+    // [메인 메뉴로]·[타이틀로]: 1라운드·응급약 복용 0회로 돌리고 화면을 어둡게 한 뒤 타이틀 씬을 불러온다 (RSP-80).
+    // 설정 팝업의 [타이틀로]는 라운드 도중에도 누를 수 있으므로 진행 단계를 확인하지 않는다
+    public void GoToTitle()
+    {
+        LeaveGame(TitleSceneName);
+    }
+
+    // [엔딩으로]: 마지막 라운드를 이겼으면 1라운드·응급약 복용 0회로 돌리고 화면을 어둡게 한 뒤 엔딩 씬을 불러온다 (RSP-80)
+    public bool GoToEnding()
+    {
+        bool playerWonRound = Flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
+        if (Flow.CurrentPhase != GamePhase.RoundEnd || !_progress.IsFinalRound || !playerWonRound)
+        {
+            return false;
+        }
+
+        LeaveGame(EndingSceneName);
+        return true;
+    }
+
+    // 게임 씬을 떠나면 다음에 게임 씬으로 돌아올 때 새 게임으로 시작해야 하므로 진행 상태를 먼저 돌린다
+    private void LeaveGame(string sceneName)
+    {
+        _progress.StartNewGame();
+        _screenFade.FadeOutThen(() => SceneManager.LoadScene(sceneName));
+    }
+
     private void ReloadScene()
     {
+        _isReloadingScene = true;
         SceneManager.LoadScene(gameObject.scene.buildIndex);
     }
 

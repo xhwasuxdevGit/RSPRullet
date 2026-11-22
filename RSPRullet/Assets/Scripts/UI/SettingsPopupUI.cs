@@ -2,9 +2,11 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 설정 팝업과 게임 종료 확인 팝업 (UI·UX 화면 흐름 세부 기획서 6-4장 설정 팝업).
-// 설정 버튼의 잠금은 PhaseButtonsUI가 맡고, 이 클래스는 팝업 열기·닫기와 게임 종료만 맡는다.
+// 설정 버튼의 잠금은 PhaseButtonsUI가 맡고, 이 클래스는 팝업 열기·닫기와 타이틀로 가기·게임 종료만 맡는다.
 public class SettingsPopupUI : MonoBehaviour
 {
+    // [타이틀로]를 누르면 진행 상태를 새 게임으로 돌리고 타이틀 씬으로 간다 (RSP-80)
+    [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private Button _settingsButton;
 
     [Header("설정 팝업")]
@@ -25,9 +27,7 @@ public class SettingsPopupUI : MonoBehaviour
         _closeButton.onClick.AddListener(CloseSettings);
         _confirmQuitButton.onClick.AddListener(QuitGame);
         _cancelQuitButton.onClick.AddListener(CloseQuitConfirm);
-
-        // 타이틀로는 메인 메뉴(RSP-80)가 생길 때까지 비활성이다
-        ButtonLock.SetLocked(_titleButton, true);
+        _titleButton.onClick.AddListener(GoToTitle);
 
         _settingsPopup.SetActive(false);
         _quitConfirmPopup.SetActive(false);
@@ -40,6 +40,14 @@ public class SettingsPopupUI : MonoBehaviour
         _closeButton.onClick.RemoveListener(CloseSettings);
         _confirmQuitButton.onClick.RemoveListener(QuitGame);
         _cancelQuitButton.onClick.RemoveListener(CloseQuitConfirm);
+        _titleButton.onClick.RemoveListener(GoToTitle);
+    }
+
+    // 팝업을 닫아 두어야 화면이 어두워지는 동안 팝업이 검은 화면 위에 남지 않는다
+    private void GoToTitle()
+    {
+        _settingsPopup.SetActive(false);
+        _runner.GoToTitle();
     }
 
     private void OpenSettings()
