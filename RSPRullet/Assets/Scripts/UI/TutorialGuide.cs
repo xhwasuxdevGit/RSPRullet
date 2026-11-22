@@ -12,6 +12,9 @@ public class TutorialGuide
 {
     private readonly GameFlow _flow;
     private readonly TutorialSettings _settings;
+
+    // 이 라운드를 시작할 때까지 응급약을 복용한 횟수. 응급약 안내를 처음 먹기 전에만 띄우는 데 쓴다
+    private readonly int _medicineCount;
     private readonly HashSet<TutorialStep> _shownSteps = new HashSet<TutorialStep>();
     private readonly Queue<TutorialGuideEntry> _pendingEntries = new Queue<TutorialGuideEntry>();
 
@@ -31,10 +34,11 @@ public class TutorialGuide
     public event Action Changed;
 
     // 진행 흐름과 함께 만들어 함께 사라지므로 구독을 해제하지 않는다
-    public TutorialGuide(GameFlow flow, TutorialSettings settings)
+    public TutorialGuide(GameFlow flow, TutorialSettings settings, int medicineCount)
     {
         _flow = flow;
         _settings = settings;
+        _medicineCount = medicineCount;
         _flow.PhaseChanged += OnPhaseChanged;
     }
 
@@ -86,7 +90,7 @@ public class TutorialGuide
     // 이번 화면에서 처음 띄울 안내. 이미 띄운 단계거나 안내가 없는 화면이면 null이다
     private TutorialGuideEntry FindNewEntry(GamePhase next)
     {
-        TutorialStep? step = TutorialGuideRules.GetStep(next, _flow.Table.TurnPlayer, _flow.ShuffleCount, HasPlayerWon());
+        TutorialStep? step = TutorialGuideRules.GetStep(next, _flow.Table.TurnPlayer, _flow.ShuffleCount, HasPlayerWon(), _medicineCount);
         if (step == null || _shownSteps.Contains(step.Value)) { return null; }
 
         return _settings.GetEntry(step.Value);

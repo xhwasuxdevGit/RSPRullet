@@ -65,7 +65,7 @@ public class GameFlowRunner : MonoBehaviour
     {
         RoundSettings round = _roundSettings[_progress.RoundNumber - 1];
         Flow = new GameFlow(_ruleSettings, round, _dealerSettings, _itemSettings, new System.Random());
-        Guide = new TutorialGuide(Flow, _tutorialSettings);
+        Guide = new TutorialGuide(Flow, _tutorialSettings, _progress.MedicineCount);
     }
 
     private void Start()
