@@ -93,7 +93,10 @@ Assets/
 - 상태 확인은 짧은 명령부터 한다: `editor status`, `console status`, `script recompile_status`. 로그는 문제가 있을 때만 `console get --level error --tail 20`처럼 수준과 개수를 제한해 읽는다.
 - 테스트는 `test list`로 전체 목록을 뽑지 않고, `test run --filter <클래스명>` 또는 `--filter-type Assembly`로 범위를 좁혀 실행한다. 비동기 실행 결과는 `test status --detail failures`(실패만) 또는 `summary`(개수만)로 읽는다.
 - 동기 `test run`은 통과한 테스트까지 한 줄씩 모두 출력하므로, 결과 파일은 통과 개수와 `Failed` 줄만 뽑아 읽고 전체를 출력하지 않는다.
-- 화면 캡처는 `--output-path`로 파일에 저장하고, 이미지를 직접 봐야 할 때만 `--max-resolution 512` 이하로 인라인 이미지를 받는다.
+- 화면 캡처는 `--output-path`로 파일에 저장한다. 이미지를 직접 봐야 할 때만 `--max-resolution 512` 이하로 저장한 파일을 읽고, 원본 해상도 PNG는 Read하지 않는다. 이미지는 세션이 끝날 때까지 대화에 남으므로, 위치·크기는 `script eval`로 RectTransform 값을 읽어 확인할 수 있으면 그렇게 한다.
+- 호출 횟수를 줄인다. 명령 1회마다 그 시점의 대화 전체가 다시 읽힌다.
+  - 컴파일 확인은 `recompile` 1회로 하고, 실패했을 때만 `console get`을 읽는다.
+  - 이어지는 확인(재컴파일 → 에러 로그 → 필터 테스트)은 한 Bash 호출 안에서 `timeout 60 unity …`를 차례로 실행하고, 명령마다 종료 코드를 출력한다. 앞 명령이 124로 끝나면 뒤 명령을 실행하지 않는다(예: `rc=$?; echo "rc=$rc"; [ $rc -eq 124 ] && exit 124`).
 
 ## 8. 에디터 대화상자로 작업이 멈출 때
 - 모든 `unity` 명령은 `timeout 60 unity …` 형태로 실행한다. 다른 시간 값, 백그라운드 실행은 쓰지 않는다 (훅이 막는다).
