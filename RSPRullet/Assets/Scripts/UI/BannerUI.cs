@@ -15,6 +15,9 @@ public class BannerUI : MonoBehaviour
     [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
 
+    // 배너가 뜰 때 효과음 (RSP-74)
+    [SerializeField] private SoundPlayer _sound;
+
     // 투명도로 나타남·사라짐을 보여 준다. 클릭은 막지 않는다(blocksRaycasts 끔)
     [SerializeField] private CanvasGroup _group;
 
@@ -88,7 +91,27 @@ public class BannerUI : MonoBehaviour
 
         _isHeld = false;
         SetShowing(true);
-        StartCoroutine(Play(readSeconds, BannerRules.IsHeldForTransition(type, _runner.IsFinalRound)));
+        StartCoroutine(Play(type, readSeconds,BannerRules.IsHeldForTransition(type, _runner.IsFinalRound)));
+    }
+
+    // 판 승패·무승부 판정은 계산대 소리, 라운드 승패는 소리를 내지 않고(어두워진 뒤 ScreenFadeUI가 낸다), 나머지는 안내 소리를 낸다.
+    // 카드 정산의 계산대 소리는 배너가 아니라 정산 결과를 반영할 때 GameFlowRunner가 낸다
+    private void PlayBannerSound(BannerType type)
+    {
+        switch (type)
+        {
+            case BannerType.MatchWin:
+            case BannerType.MatchLose:
+            case BannerType.MatchDraw:
+                _sound.PlayCashRegister();
+                break;
+            case BannerType.RoundWin:
+            case BannerType.RoundLose:
+                break;
+            default:
+                _sound.PlayBanner();
+                break;
+        }
     }
 
     // 남겨 둔 라운드 승패 배너를 사라지게 한다. 화면이 다 어두워진 뒤 라운드 전환 화면이 부른다.
@@ -125,9 +148,11 @@ public class BannerUI : MonoBehaviour
 
     // 바꿔 띄울 때는 지금 보이는 정도에서 이어서 나타나게 해, 배너가 깜박이지 않게 한다
     // 남겨 두는 배너는 읽는 시간이 지나면 사라지지 않고 Held를 알린 채 기다린다
-    private IEnumerator Play(float readSeconds, bool isHeld)
+    // 효과음은 배너가 다 나타난 순간에 낸다
+    private IEnumerator Play(BannerType type, float readSeconds, bool isHeld)
     {
         yield return StartCoroutine(Fade(_group.alpha, 1f, _displayTimeSettings.BannerAppearSeconds));
+        PlayBannerSound(type);
         yield return new WaitForSeconds(readSeconds);
         if (isHeld)
         {

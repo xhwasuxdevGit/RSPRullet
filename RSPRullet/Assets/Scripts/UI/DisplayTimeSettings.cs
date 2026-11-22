@@ -69,6 +69,10 @@ public class DisplayTimeSettings : ScriptableObject
     // 다른 배너의 나타남·사라짐(Banner Appear Seconds)과 따로 둔다
     [SerializeField, Range(0.5f, 1.5f)] private float _roundResultBannerHideSeconds = 1.0f;
 
+    // 라운드 승패 배너가 사라진 뒤 안내 말풍선·버튼을 띄우기 전까지 화면을 검게 유지하는 시간(초) (RSP-74).
+    // 라운드 클리어·게임 오버 소리(약 3초)가 끝나도록 "소리 길이 − 배너 사라지는 시간"으로 맞춘다
+    [SerializeField, Range(0f, 3f)] private float _roundResultBlackHoldSeconds = 1.5f;
+
     public float MatchResultSeconds => _matchResultSeconds;
     public float SettlementSeconds => _settlementSeconds;
     public float CardPoolSeconds => _cardPoolSeconds;
@@ -88,4 +92,5 @@ public class DisplayTimeSettings : ScriptableObject
     public float ScreenFadeOutSeconds => _screenFadeOutSeconds;
     public float ScreenFadeInSeconds => _screenFadeInSeconds;
     public float RoundResultBannerHideSeconds => _roundResultBannerHideSeconds;
+    public float RoundResultBlackHoldSeconds => _roundResultBlackHoldSeconds;
 }

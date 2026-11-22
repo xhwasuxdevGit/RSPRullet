@@ -25,6 +25,9 @@ public class CardShuffleUI : MonoBehaviour
     // 라운드·셔플 시작 배너가 떠 있으면 카드풀 공개를 배너가 꺼진 뒤로 미룬다 (RSP-86)
     [SerializeField] private BannerUI _banner;
 
+    // 카드 뒤집기·섞기·시작 카드 이동 효과음 (RSP-74)
+    [SerializeField] private SoundPlayer _sound;
+
     // 카드풀 공개 때 7장을 늘어놓는 자리 (PFB_TableCard)
     [SerializeField] private CardView[] _spreadCards;
 
@@ -128,6 +131,7 @@ public class CardShuffleUI : MonoBehaviour
         Sprite cardBack = _tableCards.CardBackSprite;
         float flipSeconds = _displayTimeSettings.CardFlipSeconds;
         int lastIndex = _spreadMotions.Length - 1;
+        _sound.PlayCardPlace();
         for (int i = 0; i < lastIndex; i++)
         {
             StartCoroutine(_spreadMotions[i].Flip(cardBack, false, flipSeconds));
@@ -174,6 +178,7 @@ public class CardShuffleUI : MonoBehaviour
     private IEnumerator ShuffleDeck()
     {
         float seconds = _displayTimeSettings.DeckShuffleSeconds;
+        _sound.PlayCardShuffle();
         for (float elapsed = 0f; elapsed < seconds; elapsed += Time.deltaTime)
         {
             // 0 → 1 → 0을 ShuffleSwingCount번 반복하는 값
@@ -200,10 +205,12 @@ public class CardShuffleUI : MonoBehaviour
         float seconds = _displayTimeSettings.CardMoveSeconds;
 
         playerCard.sprite = _tableCards.GetFrontSprite(_flow.Table.GetCombinationSlots(Side.Player)[0].Shape);
+        _sound.PlayCardPlace();
         StartCoroutine(MoveCard(playerCard.transform, _playerStartSlot.position, seconds));
         yield return new WaitForSeconds(_displayTimeSettings.CardMoveDelaySeconds);
 
         dealerCard.sprite = _tableCards.GetFrontSprite(_flow.Table.GetCombinationSlots(Side.Dealer)[0].Shape);
+        _sound.PlayCardPlace();
         yield return StartCoroutine(MoveCard(dealerCard.transform, _dealerStartSlot.position, seconds));
 
         // 도착한 시작 카드는 이어서 조합 칸이 보여 주므로, 낱장은 제자리·뒷면으로 돌려놓는다

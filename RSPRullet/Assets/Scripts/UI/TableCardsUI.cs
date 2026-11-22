@@ -22,6 +22,9 @@ public class TableCardsUI : MonoBehaviour
     // 진행 안내 배너가 떠 있는 동안에는 다음 연출을 시작하지 않는다 (RSP-86)
     [SerializeField] private BannerUI _banner;
 
+    // 카드 분배·뒤집기·교환 효과음 (RSP-74)
+    [SerializeField] private SoundPlayer _sound;
+
     [SerializeField] private CardView _playerSlot;
     [SerializeField] private CardView _dealerSlot;
     [SerializeField] private CardView _drawnCard;
@@ -200,7 +203,7 @@ public class TableCardsUI : MonoBehaviour
 
         if (card != null && card == plannedCard && sprite != plannedSprite)
         {
-            Enqueue(motion.Flip(sprite, showsKnownMarker, _displayTimeSettings.CardFlipSeconds));
+            Enqueue(FlipWithSound(motion, sprite, showsKnownMarker, _displayTimeSettings.CardFlipSeconds));
         }
         else if (IsAnimating)
         {
@@ -291,11 +294,13 @@ public class TableCardsUI : MonoBehaviour
 
         // 뽑은 카드는 기다리지 않고 출발시키고, 더미의 다음 카드는 시차만큼 늦게 출발한다. 두 이동은 겹친다
         drawnReceiver.Show(drawnSprite, drawnMarker);
+        _sound.PlayCardPlace();
         StartCoroutine(drawnReceiverMotion.MoveFrom(drawnPosition, _displayTimeSettings.CardMoveSeconds));
         yield return new WaitForSeconds(_displayTimeSettings.CardMoveDelaySeconds);
 
         // 늦게 출발한 카드가 마지막에 도착하므로 이 카드의 이동만 기다린다
         deckReceiver.Show(deckSprite, deckMarker);
+        _sound.PlayCardPlace();
         yield return StartCoroutine(deckReceiverMotion.MoveFrom(_deckTop.position, _displayTimeSettings.CardMoveSeconds));
     }
 
@@ -309,12 +314,20 @@ public class TableCardsUI : MonoBehaviour
 
         _playerSlot.Show(playerBefore, playerMarker);
         _dealerSlot.Show(dealerBefore, dealerMarker);
+        _sound.PlayCardPlace();
         StartCoroutine(_playerSlotMotion.CurveFrom(dealerSlotPosition, seconds));
         yield return StartCoroutine(_dealerSlotMotion.CurveFrom(playerSlotPosition, seconds));
 
         float flipSeconds = _displayTimeSettings.CardFlipSeconds;
-        if (playerAfter != playerBefore) { yield return StartCoroutine(_playerSlotMotion.Flip(playerAfter, playerMarker, flipSeconds)); }
-        if (dealerAfter != dealerBefore) { yield return StartCoroutine(_dealerSlotMotion.Flip(dealerAfter, dealerMarker, flipSeconds)); }
+        if (playerAfter != playerBefore) { yield return StartCoroutine(FlipWithSound(_playerSlotMotion, playerAfter, playerMarker, flipSeconds)); }
+        if (dealerAfter != dealerBefore) { yield return StartCoroutine(FlipWithSound(_dealerSlotMotion, dealerAfter, dealerMarker, flipSeconds)); }
+    }
+
+    // 카드 놓는 소리와 함께 뒤집는다
+    private IEnumerator FlipWithSound(CardMotion motion, Sprite sprite, bool showsKnownMarker, float seconds)
+    {
+        _sound.PlayCardPlace();
+        yield return StartCoroutine(motion.Flip(sprite, showsKnownMarker, seconds));
     }
 
     // 내 카드 → 딜러 카드 순서로 2박자에 공개한다. 이미 앞면인 카드는 그 박자에 뒤집는 대신 강조한다 (연출·아트·사운드 세부 기획서 3-6장)
@@ -336,7 +349,7 @@ public class TableCardsUI : MonoBehaviour
         float seconds = _displayTimeSettings.CardFlipSeconds;
         if (sprite != shownSprite)
         {
-            yield return StartCoroutine(motion.Flip(sprite, CardFaceRules.ShowsKnownMarker(card, _flow.CurrentPhase), seconds));
+            yield return StartCoroutine(FlipWithSound(motion, sprite, CardFaceRules.ShowsKnownMarker(card, _flow.CurrentPhase), seconds));
             yield break;
         }
 
