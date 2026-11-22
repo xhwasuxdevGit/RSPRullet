@@ -12,6 +12,9 @@ public class ItemSlotsUI : MonoBehaviour
     [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private Side _side;
 
+    // 카드 연출 중인지 읽는 테이블 카드 표시. 플레이어 칸에만 연결한다
+    [SerializeField] private TableCardsUI _tableCards;
+
     // 왼쪽부터 보유 칸. 가장 큰 보유 한도(3라운드 6칸)만큼 두고, 이번 라운드 보유 한도만큼만 보여 준다.
     // _slotButtons와 _slotIcons는 같은 순서다. 딜러용 칸은 누르지 않으므로 버튼을 항상 꺼 둔다
     [SerializeField] private Button[] _slotButtons;
@@ -42,6 +45,9 @@ public class ItemSlotsUI : MonoBehaviour
 
         if (_side != Side.Player) { return; }
 
+        // 카드 연출 중에는 내 아이템 칸을 누를 수 없고, 연출이 끝나면 다시 정한다
+        _tableCards.AnimationStateChanged += Refresh;
+
         // 칸 번호를 넘기려고 칸마다 리스너를 따로 만든다. 지울 때는 이 칸 버튼의 리스너만 모두 지운다 (OnDestroy)
         for (int i = 0; i < _slotButtons.Length; i++)
         {
@@ -55,6 +61,7 @@ public class ItemSlotsUI : MonoBehaviour
         _flow.PhaseChanged -= OnPhaseChanged;
         _flow.ItemsChanged -= Refresh;
         _flow.ItemUsed -= Refresh;
+        if (_side == Side.Player) { _tableCards.AnimationStateChanged -= Refresh; }
 
         foreach (Button button in _slotButtons)
         {
@@ -132,7 +139,7 @@ public class ItemSlotsUI : MonoBehaviour
     // 돋보기 선택 중에는 그 버튼 대신 바꾼다·그대로 둔다가 켜지므로 칸도 잠긴다 (PhaseButtonRules)
     private bool CanPlayerUseItems()
     {
-        if (_side != Side.Player) { return false; }
+        if (_side != Side.Player || _tableCards.IsAnimating) { return false; }
 
         PhaseButton buttons = PhaseButtonRules.GetButtons(_flow.CurrentPhase, _flow.Table.TurnPlayer,
             hasUsableItem: _flow.HasUsableItem(Side.Player), isWaitingForMagnifierChoice: _flow.IsWaitingForMagnifierChoice,

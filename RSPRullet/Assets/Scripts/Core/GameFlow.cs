@@ -152,11 +152,15 @@ public class GameFlow
         return true;
     }
     
-    // 판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음)와 [다음 카드 셔플]을 눌렀을 때 받는다
+    // 카드 공개 연출이 끝났을 때(테이블 카드 표시가 넣음), 판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음),
+    // [다음 카드 셔플]을 눌렀을 때 받는다
     public bool Next()
     {
         switch (CurrentPhase)
         {
+            case GamePhase.Reveal:
+                JudgeMatch();
+                return true;
             case GamePhase.ShowResult:
                 FinishMatch();
                 return true;
@@ -241,13 +245,20 @@ public class GameFlow
 
     private void ResolveMatchIfItemPhaseFinished()
     {
-        if (_itemPhase.IsFinished) { ResolveMatch(); }
+        if (_itemPhase.IsFinished) { RevealMatch(); }
     }
 
-    // 카드 공개 → 판정까지 진행하고, 판 결과 확인 입력을 기다린다
-    private void ResolveMatch()
+    // 이번 판 카드를 양쪽에 공개하고 카드 공개 단계에서 멈춘다.
+    // 화면이 카드 공개 연출(내 카드 → 딜러 카드 2박자)을 마치고 Next()를 넣으면 판정으로 간다 (연출·아트·사운드 세부 기획서 3-6장).
+    // 판정을 바로 하면 체력과 판정 기록이 카드가 뒤집히기 전에 먼저 바뀌기 때문이다
+    private void RevealMatch()
     {
         _table.RevealMatchCards();
+    }
+
+    // 판정하고 판 결과 확인 입력을 기다린다
+    private void JudgeMatch()
+    {
         _phaseMachine.CompleteReveal();
 
         HandShape playerShape = _table.GetMatchCard(Side.Player).Shape;

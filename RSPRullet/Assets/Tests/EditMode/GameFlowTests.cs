@@ -63,6 +63,14 @@ public class GameFlowTests
             bool moved = flow.IsWaitingForDealerItems ? flow.FinishDealerItemPhase() : flow.FinishItemPhase();
             if (!moved) { return; }
         }
+
+        FinishRevealAnimation(flow);
+    }
+
+    // 카드 공개 단계에서 멈춰 있으면 화면의 카드 공개 연출이 끝난 것으로 보고 판정까지 진행한다
+    private static void FinishRevealAnimation(GameFlow flow)
+    {
+        if (flow.CurrentPhase == GamePhase.Reveal) { flow.Next(); }
     }
 
     // 두 판을 진행해 정산 확인 지점(또는 판 도중 라운드 종료)까지 간다
@@ -110,7 +118,7 @@ public class GameFlowTests
     }
 
     [Test]
-    public void PlayerDistribute_JudgesMatch_AndStopsAtResult()
+    public void PlayerDistribute_StopsAtReveal_ThenNextJudges()
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
@@ -125,9 +133,51 @@ public class GameFlowTests
             Card drawn = flow.Table.DrawnCard;
 
             Assert.IsTrue(flow.Distribute(keep: true));
-            Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+            Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
             Assert.AreSame(drawn, flow.Table.GetCombinationSlots(Side.Player)[1]);
             Assert.IsNull(flow.Table.DrawnCard);
+
+            // 카드 공개 연출이 끝나면(화면이 Next를 넣음) 판정해 판 결과로 간다
+            Assert.IsTrue(flow.Next());
+            Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+            return;
+        }
+
+        Assert.Fail("플레이어가 선인 시드를 찾지 못했다");
+    }
+
+    // 카드 공개 단계에서는 이번 판 카드만 양쪽에 공개하고, 체력과 판정 기록은 Next로 판정할 때 바뀐다.
+    // 카드가 뒤집히기 전에 체력·판정 기록이 먼저 바뀌어 보이지 않게 하기 위해서다 (연출·아트·사운드 세부 기획서 3-6장)
+    [Test]
+    public void Reveal_ShowsMatchCards_ButJudgesOnlyOnNext()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            if (flow.Table.TurnPlayer != Side.Player)
+            {
+                continue;
+            }
+
+            int playerHealth = flow.Health.GetHealth(Side.Player);
+            int dealerHealth = flow.Health.GetHealth(Side.Dealer);
+            int recordCount = 0;
+            flow.JudgmentRecorded += _ => recordCount++;
+
+            flow.DrawCard();
+            flow.Distribute(keep: true);
+
+            Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
+            Assert.IsTrue(GetLastSlotCard(flow, Side.Player).KnownByPlayer);
+            Assert.IsTrue(GetLastSlotCard(flow, Side.Dealer).KnownByPlayer);
+            Assert.AreEqual(playerHealth, flow.Health.GetHealth(Side.Player));
+            Assert.AreEqual(dealerHealth, flow.Health.GetHealth(Side.Dealer));
+            Assert.AreEqual(0, recordCount);
+
+            Assert.IsTrue(flow.Next());
+
+            Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+            Assert.AreEqual(1, recordCount);
             return;
         }
 
@@ -157,7 +207,7 @@ public class GameFlowTests
     }
 
     [Test]
-    public void PlayDealerTurn_DistributesDrawnCard_AndStopsAtResult()
+    public void PlayDealerTurn_DistributesDrawnCard_AndStopsAtReveal()
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
@@ -169,7 +219,7 @@ public class GameFlowTests
 
             Card drawn = flow.Table.DrawnCard;
             Assert.IsTrue(flow.PlayDealerTurn());
-            Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+            Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
             Assert.IsFalse(flow.IsWaitingForDealer);
             Assert.IsNull(flow.Table.DrawnCard);
             // 가졌으면 딜러 자리, 줬으면 플레이어 자리에 뽑은 카드가 들어간다
@@ -488,10 +538,12 @@ public class GameFlowTests
                 Assert.IsFalse(flow.Next());
                 Assert.IsTrue(flow.IsWaitingForDealer);
 
-                // 판 결과 확인 중에는 딜러 행동을 다시 받지 않는다
+                // 카드 공개 연출을 기다리는 중에는 딜러 행동과 플레이어의 뽑기·분배를 받지 않는다
                 flow.PlayDealerTurn();
                 Assert.IsFalse(flow.PlayDealerTurn());
-                Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+                Assert.IsFalse(flow.DrawCard());
+                Assert.IsFalse(flow.Distribute(keep: true));
+                Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
                 continue;
             }
 
@@ -697,7 +749,7 @@ public class GameFlowTests
         return null;
     }
 
-    // 보유 한도가 0인 라운드는 아이템 단계를 건너뛰고 바로 판 결과로 간다
+    // 보유 한도가 0인 라운드는 아이템 단계를 건너뛰고 바로 카드 공개로 간다
     [Test]
     public void ZeroItemCapacity_SkipsItemPhase()
     {
@@ -706,10 +758,10 @@ public class GameFlowTests
         flow.DrawCard();
         flow.Distribute(keep: true);
 
-        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
     }
 
-    // 플레이어가 턴 플레이어면 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 판 결과로 간다
+    // 플레이어가 턴 플레이어면 플레이어 단계에서 입력을 기다리고, 끝내면 딜러 단계는 바로 지나 카드 공개로 간다
     [Test]
     public void PlayerTurn_WaitsForPlayerItemPhase_ThenDealerPhasePasses()
     {
@@ -722,7 +774,7 @@ public class GameFlowTests
 
         Assert.IsTrue(flow.FinishItemPhase());
 
-        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
     }
 
     // 딜러가 턴 플레이어면 딜러 단계가 먼저 지나고, 상대인 플레이어 단계에서 입력을 기다린다
@@ -737,7 +789,7 @@ public class GameFlowTests
 
         Assert.IsTrue(flow.FinishItemPhase());
 
-        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
     }
 
     // 가지고 있지 않은 아이템은 쓸 수 없고, 아이템 단계에 그대로 머문다
@@ -1333,7 +1385,7 @@ public class GameFlowTests
     // 2라운드 값이면 라운드 시작 지급으로 딜러가 돋보기를 가지고 시작해, 딜러에게 쓸 수 있는 아이템이 있다
 
     // 플레이어가 턴 플레이어면 플레이어 단계를 끝낸 뒤 딜러 단계에서 대기하고, 판정으로 가지 않는다.
-    // 대기 중에는 플레이어 아이템 입력을 받지 않고, 대기를 끝내면 판 결과로 간다
+    // 대기 중에는 플레이어 아이템 입력을 받지 않고, 대기를 끝내면 카드 공개로 간다
     [Test]
     public void PlayerTurn_DealerWithItems_WaitsBeforeResolve()
     {
@@ -1352,7 +1404,7 @@ public class GameFlowTests
         Assert.IsTrue(flow.FinishDealerItemPhase());
 
         Assert.IsFalse(flow.IsWaitingForDealerItems);
-        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
     }
 
     // 딜러가 턴 플레이어면 딜러 분배 뒤 딜러 단계에서 먼저 대기하고, 대기를 끝내면 플레이어 단계에서 입력을 기다린다
@@ -1372,7 +1424,7 @@ public class GameFlowTests
         Assert.AreEqual(GamePhase.ItemOpponent, flow.CurrentPhase);
         Assert.IsFalse(flow.IsWaitingForDealerItems);
         Assert.IsTrue(flow.FinishItemPhase());
-        Assert.AreEqual(GamePhase.ShowResult, flow.CurrentPhase);
+        Assert.AreEqual(GamePhase.Reveal, flow.CurrentPhase);
     }
 
     // 화면은 단계 변경 알림 안에서 딜러 아이템 대기 여부를 읽는다. 아이템 진행이 이번 판 테이블을 받기 전인 첫 번째 판과
