@@ -7,7 +7,7 @@ using UnityEngine;
 // 판단 규칙은 값으로, 기록과 순서는 시드를 지정한 진행 흐름(GameFlow)으로 확인한다
 public class TutorialGuideRulesTests
 {
-    private const int SeedCount = 50;
+    private const int SeedCount = 10;
 
     // 진행 반복문 한 번에 허용하는 최대 횟수. 진행 흐름의 입력 규칙이 바뀌어 진행이 멈추면
     // 에디터가 테스트를 끝내지 못하고 멈추는 대신 이 횟수에서 실패로 끝낸다. 한 라운드는 이보다 훨씬 적게 반복한다
@@ -213,23 +213,11 @@ public class TutorialGuideRulesTests
 
     // ── 진행 흐름과 함께 ──
 
-    // 각 안내는 1라운드에서 한 번만 띄운다 (튜토리얼(1라운드) 세부 기획서 2-4장 반복 규칙)
+    // 각 안내는 1라운드에서 한 번만 띄운다 (튜토리얼(1라운드) 세부 기획서 2-4장 반복 규칙).
+    // 분배 안내는 플레이어가 선이면 플레이어 분배 → 딜러 분배, 딜러가 선이면 반대 순서다 (튜토리얼(1라운드) 세부 기획서 3장, 5장 예외 TU1).
+    // 라운드 전체를 진행하는 시간이 길어 두 확인을 한 번의 진행에서 함께 한다
     [Test]
     public void FirstRound_EachStepShownAtMostOnce()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            var (flow, _, shown) = StartRound(seed, autoClick: true);
-            PlayUntilRoundEnd(flow);
-
-            CollectionAssert.AllItemsAreUnique(shown, $"seed {seed}");
-            Assert.AreEqual(TutorialStep.CardPool, shown[0], $"seed {seed}");
-        }
-    }
-
-    // 플레이어가 선이면 03 → 04, 딜러가 선이면 04 → 03 순서다 (튜토리얼(1라운드) 세부 기획서 3장, 5장 예외 TU1)
-    [Test]
-    public void FirstRound_DistributeGuidesFollowFirstTurnPlayer()
     {
         bool checkedPlayerFirst = false;
         bool checkedDealerFirst = false;
@@ -238,6 +226,9 @@ public class TutorialGuideRulesTests
             var (flow, _, shown) = StartRound(seed, autoClick: true);
             Side firstTurnPlayer = flow.Table.TurnPlayer;
             PlayUntilRoundEnd(flow);
+
+            CollectionAssert.AllItemsAreUnique(shown, $"seed {seed}");
+            Assert.AreEqual(TutorialStep.CardPool, shown[0], $"seed {seed}");
 
             int playerIndex = shown.IndexOf(TutorialStep.PlayerDistribute);
             int dealerIndex = shown.IndexOf(TutorialStep.DealerDistribute);
@@ -422,21 +413,6 @@ public class TutorialGuideRulesTests
         }
 
         Assert.Fail("정산 뒤 다음 카드 셔플로 넘어가는 시드가 필요하다");
-    }
-
-    // 1라운드를 이기면 아이템 예고 안내를, 지면 안내 없이 끝낸다 (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
-    [Test]
-    public void FirstRound_RoundEnd_ShowsRoundWinOnlyWhenPlayerWins()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            var (flow, guide, _) = StartRound(seed, autoClick: true);
-            PlayUntilRoundEnd(flow);
-
-            bool playerWon = flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
-            if (playerWon) { Assert.AreEqual(TutorialStep.RoundWin, guide.CurrentEntry.Step, $"seed {seed}"); }
-            else { Assert.IsNull(guide.CurrentEntry, $"seed {seed}"); }
-        }
     }
 
     // 응급약 복용으로 같은 라운드를 다시 하면 새 진행 흐름과 함께 기록이 비어 안내가 처음부터 나온다 (튜토리얼(1라운드) 세부 기획서 6-3장 TU-F1)

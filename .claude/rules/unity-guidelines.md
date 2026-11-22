@@ -92,6 +92,7 @@ Assets/
 - 명령을 찾을 때는 그룹 전체 목록(`unity command <group>`) 대신 `unity command --query <단어>`를 먼저 쓴다.
 - 상태 확인은 짧은 명령부터 한다: `editor status`, `console status`, `script recompile_status`. 로그는 문제가 있을 때만 `console get --level error --tail 20`처럼 수준과 개수를 제한해 읽는다.
 - 테스트는 `test list`로 전체 목록을 뽑지 않고, `test run --filter <클래스명>` 또는 `--filter-type Assembly`로 범위를 좁혀 실행한다. 비동기 실행 결과는 `test status --detail failures`(실패만) 또는 `summary`(개수만)로 읽는다.
+- 동기 `test run`은 통과한 테스트까지 한 줄씩 모두 출력하므로, 결과 파일은 통과 개수와 `Failed` 줄만 뽑아 읽고 전체를 출력하지 않는다.
 - 화면 캡처는 `--output-path`로 파일에 저장하고, 이미지를 직접 봐야 할 때만 `--max-resolution 512` 이하로 인라인 이미지를 받는다.
 
 ## 8. 에디터 대화상자로 작업이 멈출 때
