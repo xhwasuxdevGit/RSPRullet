@@ -36,6 +36,9 @@ public class ScreenFadeUI : MonoBehaviour
     [SerializeField] private AudioSource _audioSource;
     [SerializeField] private AudioClip[] _medicineClips;
 
+    // 화면이 다 어두워졌을 때 내는 라운드 클리어·게임 오버 소리 (RSP-74)
+    [SerializeField] private SoundPlayer _sound;
+
     // 어두워지는 중이거나 안내 클릭을 기다리는 중인지. 단계별 버튼은 이 동안 잠긴다
     public bool IsBusy { get; private set; }
 
@@ -83,8 +86,12 @@ public class ScreenFadeUI : MonoBehaviour
     private IEnumerator RoundEndRoutine()
     {
         yield return StartCoroutine(Fade(_fadeGroup.alpha, 1f, _displayTimeSettings.ScreenFadeOutSeconds));
+        PlayRoundEndStinger();
         _banner.ReleaseHeld();
         while (_banner.IsShowing) { yield return null; }
+
+        // 라운드 클리어·게임 오버 소리가 끝날 때까지 검은 화면을 유지한 뒤 안내와 버튼을 띄운다 (RSP-74)
+        yield return new WaitForSeconds(_displayTimeSettings.RoundResultBlackHoldSeconds);
 
         string text = GetRoundEndText();
         if (text == null)
@@ -94,6 +101,14 @@ public class ScreenFadeUI : MonoBehaviour
         }
 
         ShowGuide(text);
+    }
+
+    // 이긴 라운드는 클리어 소리, 진 라운드는 게임 오버 소리. 마지막 라운드는 이 화면을 거치지 않아 소리가 나지 않는다
+    private void PlayRoundEndStinger()
+    {
+        bool playerWonRound = _runner.Flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
+        if (playerWonRound) { _sound.PlayRoundClearStinger(); }
+        else { _sound.PlayGameOverStinger(); }
     }
 
     // 1라운드는 튜토리얼 승리·응급약 안내(TutorialGuideRules.GetRoundEndStep), 2라운드 클리어는 2라운드 클리어 문구다.

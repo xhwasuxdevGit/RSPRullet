@@ -27,6 +27,9 @@ public class GameFlowRunner : MonoBehaviour
     // 응급약 복용은 효과음을 재생한 뒤, 다시하기는 화면을 어둡게 한 뒤 씬을 다시 불러온다 (RSP-91)
     [SerializeField] private ScreenFadeUI _screenFade;
 
+    // 씬을 다시 불러오기 전에 배경음악 위치를 남겨, 다음 라운드 씬이 이어서 재생하게 한다 (RSP-74)
+    [SerializeField] private SoundPlayer _sound;
+
     // 카드풀을 공개하는 중인지와 남은 시간
     private bool _isShowingCardPool;
     private float _cardPoolTimeLeft;
@@ -180,6 +183,7 @@ public class GameFlowRunner : MonoBehaviour
     private void ReloadScene()
     {
         _isReloadingScene = true;
+        _sound.KeepBgmPosition();
         SceneManager.LoadScene(gameObject.scene.buildIndex);
     }
 
@@ -357,7 +361,13 @@ public class GameFlowRunner : MonoBehaviour
         // 결과를 반영한 뒤부터 정산 표시 시간을 센다
         if (Flow.IsWaitingSettlementReveal)
         {
-            if (!_banner.IsShowing) { Flow.Next(); }
+            if (!_banner.IsShowing)
+            {
+                // 정산 결과가 판정 기록에 적히는 순간 계산대 소리를 낸다 (RSP-74)
+                _sound.PlayCashRegister();
+                Flow.Next();
+            }
+
             return;
         }
 

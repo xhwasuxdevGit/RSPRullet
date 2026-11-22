@@ -44,6 +44,23 @@ OpenAI 이미지 생성 결과를 편집해 사용 (OpenAI 이용약관, 상업 
 
 - granola bar wrapper grabbed 1 : 응급약 복용 효과음 (약 포장을 집는 소리)
 - gulp 1                        : 응급약 복용 효과음 (삼키는 소리, 포장 소리 뒤에 이어 재생)
+- glass ding 1                  : 안내 배너 효과음 (FilmCow Recorded SFX, 음량만 키워 사용)
+
+----------------------------------------
+[사운드] Kenney (www.kenney.nl) - CC0 1.0
+----------------------------------------
+라이선스: Creative Commons Zero (http://creativecommons.org/publicdomain/zero/1.0/)
+크레딧 표기는 필수가 아니지만 출처 관리를 위해 팩 이름을 기록합니다.
+(Casino Audio 라이선스 파일에 "gambling" 단어가 없음을 확인함, 2026-11-23)
+
+- Casino Audio : card-place-1~4(카드 분배·뒤집기·교환), card-shuffle(카드 섞기, 0.7초로 잘라 사용)
+- UI Audio     : click4(버튼 클릭음)
+
+----------------------------------------
+[사운드] Zott820 (freesound.org/people/Zott820/sounds/209578/) - CC0 1.0
+----------------------------------------
+라이선스: Creative Commons 0 (http://creativecommons.org/publicdomain/zero/1.0/), 크레딧 표기 불필요 (Freesound 페이지 확인 2026-11-23).
+- cash-register-purchase : 조합 정산·판정 효과음 (2초로 잘라 끝을 페이드아웃)
 
 ----------------------------------------
 [배경음악] Kevin MacLeod (incompetech.com) - CC BY 4.0
@@ -57,6 +74,18 @@ OpenAI 이미지 생성 결과를 편집해 사용 (OpenAI 이용약관, 상업 
   https://creativecommons.org/licenses/by/4.0/
 - Hep Cats                : 엔딩 배경음악
   "Hep Cats" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0
+  https://creativecommons.org/licenses/by/4.0/
+- Deadly Roulette         : 타이틀·게임 배경음악 (자르지 않고 전체 사용)
+  "Deadly Roulette" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0
+  https://creativecommons.org/licenses/by/4.0/
+- CoolIntro_Stinger_Long  : 라운드 클리어 소리 (앞 3초만 사용, 끝 1초 페이드아웃)
+  "CoolIntro Stinger Long" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0
+  https://creativecommons.org/licenses/by/4.0/
+- SpyGlass_Stinger_GameOver_Short : 게임 오버 소리 (앞 3초만 사용, 끝 1초 페이드아웃)
+  "SpyGlass Stinger GameOver Short" Kevin MacLeod (incompetech.com)
   Licensed under Creative Commons: By Attribution 4.0
   https://creativecommons.org/licenses/by/4.0/
 

@@ -28,6 +28,6 @@ MonoBehaviour:
   _bannerAppearSeconds: 0.6
   _bannerTransitionReadSeconds: 0.6
   _bannerResultReadSeconds: 1
-  _screenFadeOutSeconds: 0.5
-  _screenFadeInSeconds: 0.5
-  _roundResultBannerHideSeconds: 1
+  _screenFadeOutSeconds: 0.3
+  _screenFadeInSeconds: 0.3
+  _roundResultBannerHideSeconds: 1.5
