@@ -17,6 +17,9 @@ public class GameFlowRunner : MonoBehaviour
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
     [SerializeField] private TutorialSettings _tutorialSettings;
 
+    // 진행 안내 배너가 떠 있는 동안에는 자동 진행 남은 시간을 줄이지 않고, 꺼진 뒤부터 센다 (RSP-86)
+    [SerializeField] private BannerUI _banner;
+
     // 카드풀을 공개하는 중인지와 남은 시간
     private bool _isShowingCardPool;
     private float _cardPoolTimeLeft;
@@ -152,6 +155,8 @@ public class GameFlowRunner : MonoBehaviour
             return;
         }
 
+        if (_banner.IsShowing) { return; }
+
         _cardPoolTimeLeft -= Time.deltaTime;
         if (!TutorialGuideRules.CanAdvance(_cardPoolTimeLeft <= 0f, Guide.IsWaitingForClick))
         {
@@ -178,6 +183,8 @@ public class GameFlowRunner : MonoBehaviour
             _decideFirstTimeLeft = _displayTimeSettings.DecideFirstSeconds;
             return;
         }
+
+        if (_banner.IsShowing) { return; }
 
         _decideFirstTimeLeft -= Time.deltaTime;
         if (!TutorialGuideRules.CanAdvance(_decideFirstTimeLeft <= 0f, Guide.IsWaitingForClick))
@@ -207,6 +214,8 @@ public class GameFlowRunner : MonoBehaviour
                 _displayTimeSettings.DealerThinkingMinSeconds, _displayTimeSettings.DealerThinkingMaxSeconds);
             return;
         }
+
+        if (_banner.IsShowing) { return; }
 
         _dealerThinkingTimeLeft -= Time.deltaTime;
         if (!TutorialGuideRules.CanAdvance(_dealerThinkingTimeLeft <= 0f, Guide.IsWaitingForClick))
@@ -264,6 +273,8 @@ public class GameFlowRunner : MonoBehaviour
             return;
         }
 
+        if (_banner.IsShowing) { return; }
+
         _matchResultTimeLeft -= Time.deltaTime;
         if (!TutorialGuideRules.CanAdvance(_matchResultTimeLeft <= 0f, Guide.IsWaitingForClick))
         {
@@ -285,12 +296,22 @@ public class GameFlowRunner : MonoBehaviour
             return;
         }
 
+        // 정산 단계에 막 들어와 카드 정산 배너를 보여 주는 중이면, 배너가 꺼진 뒤 정산 결과를 반영하게 한다.
+        // 결과를 반영한 뒤부터 정산 표시 시간을 센다
+        if (Flow.IsWaitingSettlementReveal)
+        {
+            if (!_banner.IsShowing) { Flow.Next(); }
+            return;
+        }
+
         if (!_isShowingSettlement)
         {
             _isShowingSettlement = true;
             _settlementTimeLeft = _displayTimeSettings.SettlementSeconds;
             return;
         }
+
+        if (_banner.IsShowing) { return; }
 
         _settlementTimeLeft -= Time.deltaTime;
         if (!TutorialGuideRules.CanAdvance(_settlementTimeLeft <= 0f, Guide.IsWaitingForClick))

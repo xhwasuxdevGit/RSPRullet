@@ -21,6 +21,9 @@ public class GameFlow
     // 선 정하기 결과. 결과를 보여 주는 동안 멈췄다가 Next()에서 첫 번째 판으로 갈지 다시 섞을지 정할 때 쓴다
     private bool _isFirstTurnDecided;
 
+    // 정산 결과를 반영했는지. 정산 단계에 들어오면 카드 정산 배너를 보여 주는 동안 반영하지 않고 멈춘다
+    private bool _isSettlementApplied;
+
     public event Action<string> Logged;
     public event Action<string> JudgmentRecorded;
 
@@ -28,6 +31,10 @@ public class GameFlow
     public event Action JudgmentRecordCleared;
     
     public event Action<GamePhase, GamePhase> PhaseChanged;
+
+    // 진행 안내 배너 요청 (RSP-86). 전환 배너는 그 단계의 다른 알림보다 먼저, 결과 배너는 판정 기록과 같은 시점에 보낸다.
+    // 화면은 이 알림을 받는 순간 배너를 띄워, 같은 순간에 오는 단계·카드 알림의 버튼·연출을 배너가 꺼질 때까지 미룬다
+    public event Action<BannerType> BannerRequested;
 
     // 아래 알림은 상태가 실제로 바뀌었을 때만 보낸다. 카드풀 정보는 판 시작 때만 정해져 그때 보낸다.
     // 카드·체력·아이템 알림은 각 상태 클래스의 알림을 그대로 넘긴다
@@ -56,6 +63,10 @@ public class GameFlow
     // 이번 카드풀 구성을 보여 주는 중인지. 시작 카드 배분 단계에서 시작 카드를 나눠 주기 전이다.
     // 시작 카드를 나눠 준 뒤에도 같은 단계지만, 그때는 화면의 카드 섞기 연출을 기다리는 중이다
     public bool IsShowingCardPool => CurrentPhase == GamePhase.StartCardDeal && _table.GetCombinationSlots(Side.Player).Count == 0;
+
+    // 정산 단계에서 카드 정산 배너를 보여 주는 중이라 아직 정산 결과를 반영하지 않았는지.
+    // 씬 연결은 배너가 꺼지면 Next()를 넣어 정산 결과를 반영한다
+    public bool IsWaitingSettlementReveal => CurrentPhase == GamePhase.Settlement && !_isSettlementApplied;
 
     // 플레이어가 돋보기로 상대 카드를 본 뒤 바꿀지 그대로 둘지 고르는 중인지. 아이템 단계 안의 대기라 진행 단계는 그대로다.
     public bool IsWaitingForMagnifierChoice => _itemPhase.IsWaitingForMagnifierChoice;
@@ -98,7 +109,8 @@ public class GameFlow
         if (!_phaseMachine.CompleteRoundStart()) { return false; }
 
         Log($"라운드 시작: 양쪽 체력 {_health.GetHealth(Side.Player)}");
-        
+        RequestBanner(BannerType.RoundStart);
+
         _itemPhase.SupplyStartItems();
         StartShuffle();
         return true;
@@ -161,7 +173,8 @@ public class GameFlow
     }
     
     // 카드 공개 연출·카드 섞기 연출이 끝났을 때(화면이 넣음),
-    // 카드풀 공개·선 정하기 결과·판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음), [다음 카드 셔플]을 눌렀을 때 받는다
+    // 카드풀 공개·선 정하기 결과·판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음),
+    // 카드 정산 배너가 꺼졌을 때(씬 연결이 넣음), [다음 카드 셔플]을 눌렀을 때 받는다
     public bool Next()
     {
         switch (CurrentPhase)
@@ -180,7 +193,8 @@ public class GameFlow
                 FinishMatch();
                 return true;
             case GamePhase.Settlement:
-                FinishSettlement();
+                if (IsWaitingSettlementReveal) { ApplySettlement(); }
+                else { FinishSettlement(); }
                 return true;
             case GamePhase.SettlementWait:
                 _phaseMachine.CompleteSettlementWait();
@@ -197,6 +211,8 @@ public class GameFlow
     private void StartShuffle()
     {
         ShuffleCount++;
+        // 라운드의 첫 셔플은 라운드 배너만 띄운다. 선 정하기가 비겨 다시 섞을 때는 여기를 거치지 않아 셔플 배너가 없다
+        if (ShuffleCount > 1) { RequestBanner(BannerType.ShuffleStart); }
 
         _itemPhase.SupplyShuffleItems();
         ShowCardPool();
@@ -227,6 +243,8 @@ public class GameFlow
         if (hasClockCarryOver)
         {
             Log($"시계 이월로 선 정하기 생략: {DisplayNames.GetSideName(_table.TurnPlayer)} 선");
+            // 판 시작 배너가 없으므로, 시계 이월로 정해진 선도 선 결과 배너로 알린다
+            RequestFirstTurnBanner();
             BeginMatch();
             return;
         }
@@ -234,6 +252,8 @@ public class GameFlow
         _isFirstTurnDecided = _table.DecideFirstTurnPlayer();
         Record(JudgmentRecordRules.GetFirstTurnText(_table.GetStartCard(Side.Player).Shape, _table.GetStartCard(Side.Dealer).Shape));
         Log(_isFirstTurnDecided ? $"선 정하기: {DisplayNames.GetSideName(_table.TurnPlayer)} 선" : "선 정하기 무승부: 다시 섞습니다");
+        if (!_isFirstTurnDecided) { RequestBanner(BannerType.FirstTurnDraw); }
+        else { RequestFirstTurnBanner(); }
     }
 
     // 선 정하기 결과 표시가 끝나면 첫 번째 판을 시작한다. 비겼으면 카드풀부터 다시 만든다 (코어 규칙 상세 기획서 6장 예외 E1)
@@ -306,6 +326,7 @@ public class GameFlow
             _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer), _table.IsMatchCardSwapped));
         Log(FlowLogText.GetMatchResult(MatchIndex, playerShape, dealerShape, playerResult,
             _health.GetHealth(Side.Player), _health.GetHealth(Side.Dealer)));
+        RequestBanner(GetMatchResultBanner(playerResult));
         _phaseMachine.CompleteJudge();
     }
 
@@ -321,17 +342,26 @@ public class GameFlow
                 BeginMatch();
                 break;
             case GamePhase.Settlement:
-                ApplySettlement();
+                StartSettlement();
                 break;
             case GamePhase.RoundEnd:
-                LogRoundEnd();
+                EndRound();
                 break;
         }
+    }
+
+    // 정산 시작: 카드 정산 배너만 보내고 멈춘다. 결과가 배너보다 먼저 드러나지 않도록,
+    // 씬 연결이 배너가 꺼진 뒤 Next()를 넣으면 그때 정산 결과를 반영한다 (ApplySettlement)
+    private void StartSettlement()
+    {
+        _isSettlementApplied = false;
+        RequestBanner(BannerType.SettlementStart);
     }
 
     // 남은 1장 공개 → 양쪽 조합 효과 동시 적용. 정산 결과를 보여 주는 동안 멈춘다
     private void ApplySettlement()
     {
+        _isSettlementApplied = true;
         Card remaining = _table.RevealRemainingCard();
         Log($"정산: 남은 카드 {DisplayNames.GetShapeName(remaining.Shape)} 공개");
         Record(JudgmentRecordRules.GetRemainingCardText(remaining.Shape));
@@ -350,13 +380,40 @@ public class GameFlow
     private void FinishSettlement()
     {
         _phaseMachine.CompleteSettlement(_health.IsAnyoneAtZero);
-        if (CurrentPhase == GamePhase.RoundEnd) { LogRoundEnd(); }
+        if (CurrentPhase == GamePhase.RoundEnd)
+        {
+            EndRound();
+            return;
+        }
+
+        // 양쪽 체력 0을 둘 다 1로 되돌렸으면, 다음 카드 셔플이 체력 1 단판 승부임을 정산 결과를 다 보여 준 뒤 알린다
+        if (_health.WasBothZeroRestored) { RequestBanner(BannerType.SuddenDeath); }
     }
 
-    private void LogRoundEnd()
+    private void RequestFirstTurnBanner()
+    {
+        RequestBanner(_table.TurnPlayer == Side.Player ? BannerType.PlayerFirst : BannerType.DealerFirst);
+    }
+
+    // 라운드 종료 로그와 라운드 승패 배너. 마지막 라운드에서 배너를 띄울지는 화면이 정한다(BannerRules.IsShown)
+    private void EndRound()
     {
         Side winner = _health.GetHealth(Side.Player) == GameRules.MinHealth ? Side.Dealer : Side.Player;
         Log($"라운드 종료: {DisplayNames.GetSideName(winner)} 승리");
+        RequestBanner(winner == Side.Player ? BannerType.RoundWin : BannerType.RoundLose);
+    }
+
+    private static BannerType GetMatchResultBanner(MatchResult playerResult)
+    {
+        switch (playerResult)
+        {
+            case MatchResult.Win:
+                return BannerType.MatchWin;
+            case MatchResult.Lose:
+                return BannerType.MatchLose;
+            default:
+                return BannerType.MatchDraw;
+        }
     }
 
     private void OnPhaseMachineChanged(GamePhase previous, GamePhase next)
@@ -382,4 +439,6 @@ public class GameFlow
     }
 
     private void Record(string line) => JudgmentRecorded?.Invoke(line);
+
+    private void RequestBanner(BannerType type) => BannerRequested?.Invoke(type);
 }

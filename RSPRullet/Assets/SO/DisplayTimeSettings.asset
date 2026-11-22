@@ -25,3 +25,6 @@ MonoBehaviour:
   _deckShuffleSeconds: 0.7
   _cardLiftSeconds: 0.6
   _cardLiftTiltDegrees: 30
+  _bannerAppearSeconds: 0.5
+  _bannerTransitionReadSeconds: 0.6
+  _bannerResultReadSeconds: 1

@@ -19,6 +19,10 @@ public class HealthState : IHealthView
     // 라운드 종료 신호. 진행 단계의 CompleteShowResult에 넘긴다
     public bool IsAnyoneAtZero => _playerHealth == GameRules.MinHealth || _dealerHealth == GameRules.MinHealth;
 
+    // 마지막 정산에서 양쪽 모두 체력 0이 되어 둘 다 1로 되돌렸는지 (코어 규칙 상세 기획서 6장 예외 E4).
+    // 되돌린 뒤에는 체력만 봐서는 알 수 없으므로 따로 둔다. 진행 안내 배너에 쓴다
+    public bool WasBothZeroRestored { get; private set; }
+
     // startHealth는 라운드 설정(RoundSettings.StartHealth)에서 읽은 값
     public HealthState(RuleSettings rules, int startHealth)
     {
@@ -76,7 +80,8 @@ public class HealthState : IHealthView
         _playerHealth = Mathf.Clamp(_playerHealth + playerChange, GameRules.MinHealth, _rules.MaxHealth);
         _dealerHealth = Mathf.Clamp(_dealerHealth + dealerChange, GameRules.MinHealth, _rules.MaxHealth);
 
-        if (_playerHealth == GameRules.MinHealth && _dealerHealth == GameRules.MinHealth)
+        WasBothZeroRestored = _playerHealth == GameRules.MinHealth && _dealerHealth == GameRules.MinHealth;
+        if (WasBothZeroRestored)
         {
             _playerHealth = GameRules.HealthWhenBothZero;
             _dealerHealth = GameRules.HealthWhenBothZero;

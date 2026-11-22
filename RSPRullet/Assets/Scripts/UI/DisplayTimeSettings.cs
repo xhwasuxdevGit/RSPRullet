@@ -47,6 +47,17 @@ public class DisplayTimeSettings : ScriptableObject
     // 기획서 시작값 60°(범위 45~75°)는 너무 세워져 보여, Play 검증(RSP-63)에서 낮은 경사로 바꾸고 범위도 넓혔다
     [SerializeField, Range(15f, 75f)] private float _cardLiftTiltDegrees = 30f;
 
+    // 진행 안내 배너 시간 (RSP-86). 배너가 떠 있는 동안 자동 진행 시간과 카드 연출은 멈추고, 꺼진 뒤부터 센다
+
+    // 배너가 나타나는 시간(초). 사라질 때도 같은 시간을 쓴다 (연출·아트·사운드 세부 기획서 7-1장)
+    [SerializeField, Range(0.3f, 0.6f)] private float _bannerAppearSeconds = 0.5f;
+
+    // 전환 배너(라운드·셔플·판 시작·라운드 승패)를 다 나타난 뒤 보여 주는 시간(초)
+    [SerializeField, Range(0.4f, 1.0f)] private float _bannerTransitionReadSeconds = 0.6f;
+
+    // 결과 배너(선 정하기·판 승패·양쪽 체력 0 복구)를 다 나타난 뒤 보여 주는 시간(초) (연출·아트·사운드 세부 기획서 7-2장 선 정하기)
+    [SerializeField, Range(0.6f, 1.5f)] private float _bannerResultReadSeconds = 1.0f;
+
     public float MatchResultSeconds => _matchResultSeconds;
     public float SettlementSeconds => _settlementSeconds;
     public float CardPoolSeconds => _cardPoolSeconds;
@@ -60,4 +71,7 @@ public class DisplayTimeSettings : ScriptableObject
     public float DeckShuffleSeconds => _deckShuffleSeconds;
     public float CardLiftSeconds => _cardLiftSeconds;
     public float CardLiftTiltDegrees => _cardLiftTiltDegrees;
+    public float BannerAppearSeconds => _bannerAppearSeconds;
+    public float BannerTransitionReadSeconds => _bannerTransitionReadSeconds;
+    public float BannerResultReadSeconds => _bannerResultReadSeconds;
 }

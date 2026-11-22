@@ -79,6 +79,23 @@ public class SettingsAssetTests
         Assert.AreEqual(30f, settings.CardLiftTiltDegrees, 0.0001f);
     }
 
+    // 진행 안내 배너 (RSP-86). 배너 종류마다 문구가 있어야 빈 배너가 뜨지 않는다
+    [Test]
+    public void BannerSettings_HasTextForEveryBannerType()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<BannerSettings>($"{Folder}/BannerSettings.asset");
+
+        Assert.IsNotNull(settings);
+        Assert.IsNotNull(settings.TransitionSprite);
+        Assert.IsNotNull(settings.TintedPanelSprite);
+        foreach (BannerType type in System.Enum.GetValues(typeof(BannerType)))
+        {
+            BannerEntry entry = settings.GetEntry(type);
+            Assert.IsNotNull(entry, $"{type}");
+            Assert.IsFalse(string.IsNullOrEmpty(entry.Text), $"{type}");
+        }
+    }
+
     // 딜러 AI 세부 기획서 7-1-1장 기본값. 시계 사용 확률은 규칙 설정 에셋에서 옮겨 온 값(0.85)을 유지한다
     [Test]
     public void DealerSettings_MatchPlannedValues()
