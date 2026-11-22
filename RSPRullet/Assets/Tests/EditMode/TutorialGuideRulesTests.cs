@@ -61,7 +61,8 @@ public class TutorialGuideRulesTests
 
     private static bool IsClickWaitStep(TutorialStep step)
     {
-        return step != TutorialStep.PlayerDistribute && step != TutorialStep.Settlement && step != TutorialStep.RoundWin;
+        return step != TutorialStep.PlayerDistribute && step != TutorialStep.Settlement && step != TutorialStep.RoundWin &&
+               step != TutorialStep.RoundLose;
     }
 
     private void SetRoundNumber(int roundNumber)
@@ -73,11 +74,13 @@ public class TutorialGuideRulesTests
 
     // 안내가 바뀔 때마다 띄운 단계를 기록한다. 라운드 시작 전에 만들어야 첫 카드풀 안내부터 받는다.
     // autoClick이면 클릭 대기 안내가 뜨는 즉시 클릭해, 대기열의 안내가 모두 차례로 뜨게 한다.
-    // 카드 셔플은 클릭을 기다리지 않고 첫 번째 판까지 넘겨, 클릭 대기 중에 나온 안내가 대기열에 쌓이는 경우도 확인한다
-    private (GameFlow flow, TutorialGuide guide, List<TutorialStep> shown) StartRound(int seed, bool autoClick = false)
+    // 카드 셔플은 클릭을 기다리지 않고 첫 번째 판까지 넘겨, 클릭 대기 중에 나온 안내가 대기열에 쌓이는 경우도 확인한다.
+    // medicineCount는 이 라운드를 시작할 때까지 응급약을 복용한 횟수다
+    private (GameFlow flow, TutorialGuide guide, List<TutorialStep> shown) StartRound(int seed, bool autoClick = false,
+        int medicineCount = 0)
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
-        var guide = new TutorialGuide(flow, _tutorialSettings);
+        var guide = new TutorialGuide(flow, _tutorialSettings, medicineCount);
         List<TutorialStep> shown = RecordShownSteps(guide, autoClick);
         flow.StartRound();
         FinishShuffle(flow);
@@ -151,14 +154,14 @@ public class TutorialGuideRulesTests
     // 화면마다 띄울 안내 단계 (튜토리얼(1라운드) 세부 기획서 3장 표시 화면 상태)
     [TestCase(GamePhase.StartCardDeal, Side.Player, TutorialStep.CardPool)]
     [TestCase(GamePhase.DecideFirst, Side.Player, TutorialStep.DecideFirst)]
-    [TestCase(GamePhase.Distribute, Side.Player, TutorialStep.PlayerDistribute)]
+    [TestCase(GamePhase.Draw, Side.Player, TutorialStep.PlayerDistribute)]
     [TestCase(GamePhase.Distribute, Side.Dealer, TutorialStep.DealerDistribute)]
     [TestCase(GamePhase.ShowResult, Side.Player, TutorialStep.MatchResult)]
     [TestCase(GamePhase.Settlement, Side.Player, TutorialStep.Settlement)]
     [TestCase(GamePhase.RoundEnd, Side.Player, TutorialStep.RoundWin)]
     public void GetStep_ReturnsStepForScreen(GamePhase phase, Side turnPlayer, TutorialStep expected)
     {
-        Assert.AreEqual(expected, TutorialGuideRules.GetStep(phase, turnPlayer, 1, true));
+        Assert.AreEqual(expected, TutorialGuideRules.GetStep(phase, turnPlayer, 1, true, 0));
     }
 
     // 카드풀 공개는 두 번째 카드 셔플이면 튜토리얼 종료 안내, 그 뒤로는 안내가 없다
@@ -166,25 +169,37 @@ public class TutorialGuideRulesTests
     [TestCase(3, null)]
     public void GetStep_LaterShuffleCardPool_ReturnsTutorialEndOnlyOnSecond(int shuffleCount, TutorialStep? expected)
     {
-        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.StartCardDeal, Side.Player, shuffleCount, true));
+        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.StartCardDeal, Side.Player, shuffleCount, true, 0));
     }
 
-    // 라운드를 지면 아이템 예고 안내가 없다 (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+    // 라운드를 지면 아이템 예고 안내 대신 응급약 안내를 띄우되, 응급약을 처음 먹기 전(0회)에만 띄운다
+    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+    [TestCase(0, TutorialStep.RoundLose)]
+    [TestCase(1, null)]
+    [TestCase(2, null)]
+    public void GetStep_RoundLost_ReturnsMedicineGuideOnlyBeforeFirstMedicine(int medicineCount, TutorialStep? expected)
+    {
+        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1, false, medicineCount));
+    }
+
+    // 라운드를 이기면 응급약을 먹은 적이 있어도 승리 안내를 띄운다
     [Test]
-    public void GetStep_RoundLost_ReturnsNull()
+    public void GetStep_RoundWon_ReturnsRoundWinRegardlessOfMedicine()
     {
-        Assert.IsNull(TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1, false));
+        Assert.AreEqual(TutorialStep.RoundWin, TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1, true, 3));
     }
 
-    // 뽑기와 아이템 단계, 카드 공개·판정은 안내가 없다
-    [TestCase(GamePhase.Draw)]
-    [TestCase(GamePhase.ItemTurnPlayer)]
-    [TestCase(GamePhase.ItemOpponent)]
-    [TestCase(GamePhase.Reveal)]
-    [TestCase(GamePhase.Judge)]
-    public void GetStep_NoGuideScreen_ReturnsNull(GamePhase phase)
+    // 딜러 차례의 뽑기와 플레이어 차례의 분배는 안내가 없다. 플레이어 차례의 안내는 뽑기 화면에서 이미 띄운다.
+    // 아이템 단계, 카드 공개·판정도 안내가 없다
+    [TestCase(GamePhase.Draw, Side.Dealer)]
+    [TestCase(GamePhase.Distribute, Side.Player)]
+    [TestCase(GamePhase.ItemTurnPlayer, Side.Player)]
+    [TestCase(GamePhase.ItemOpponent, Side.Player)]
+    [TestCase(GamePhase.Reveal, Side.Player)]
+    [TestCase(GamePhase.Judge, Side.Player)]
+    public void GetStep_NoGuideScreen_ReturnsNull(GamePhase phase, Side turnPlayer)
     {
-        Assert.IsNull(TutorialGuideRules.GetStep(phase, Side.Player, 1, true));
+        Assert.IsNull(TutorialGuideRules.GetStep(phase, turnPlayer, 1, true, 0));
     }
 
     // [다음 카드 셔플]로 넘어갈 때와 라운드 종료에 들어갈 때만 지운다 (튜토리얼(1라운드) 세부 기획서 2-2장 표시 방식).
@@ -266,7 +281,7 @@ public class TutorialGuideRulesTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
-            var guide = new TutorialGuide(flow, _tutorialSettings);
+            var guide = new TutorialGuide(flow, _tutorialSettings, 0);
             List<TutorialStep> shown = RecordShownSteps(guide, autoClick: true);
             bool isDraw = false;
             flow.Logged += message => isDraw |= message.Contains("선 정하기 무승부");
@@ -288,7 +303,7 @@ public class TutorialGuideRulesTests
     public void FirstRound_ShuffleGuides_WaitForClickWhileScreenStops()
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(0));
-        var guide = new TutorialGuide(flow, _tutorialSettings);
+        var guide = new TutorialGuide(flow, _tutorialSettings, 0);
         flow.StartRound();
 
         Assert.IsTrue(flow.IsShowingCardPool);
@@ -361,29 +376,9 @@ public class TutorialGuideRulesTests
     }
 
     // 클릭 대기 안내는 클릭하기 전에 단계가 바뀌어도 그 안내가 남아 있는 동안 계속 기다린다.
-    // 판 결과 안내를 클릭하지 않고 두 번째 판으로 넘어가도, 다음 안내가 나오기 전까지는 안내와 대기가 함께 남는다
+    // 판 결과 안내를 클릭하지 않고 딜러 차례인 두 번째 판으로 넘어가도, 딜러 분배 안내는 대기열에서 기다리고 판 결과 안내와 대기가 함께 남는다
     [Test]
     public void ClickWaitGuide_KeepsWaitingUntilClickedOrReplaced()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            var (flow, guide, _) = StartRound(seed);
-            ClickAll(guide);
-            PlayTurn(flow);
-            flow.Next();
-            if (flow.CurrentPhase != GamePhase.Draw || flow.IsWaitingForDealer) { continue; }
-
-            Assert.AreEqual(TutorialStep.MatchResult, guide.CurrentEntry.Step, $"seed {seed}");
-            Assert.IsTrue(guide.IsWaitingForClick, $"seed {seed}");
-            return;
-        }
-
-        Assert.Fail("두 번째 판이 플레이어 차례인 시드가 필요하다");
-    }
-
-    // 버튼으로 넘어가는 플레이어 분배 화면은 안내를 띄워도 클릭을 기다리지 않는다 (튜토리얼(1라운드) 세부 기획서 2-3장)
-    [Test]
-    public void FirstRound_PlayerDistribute_DoesNotWaitForClick()
     {
         for (int seed = 0; seed < SeedCount; seed++)
         {
@@ -391,7 +386,38 @@ public class TutorialGuideRulesTests
             if (flow.IsWaitingForDealer) { continue; }
 
             ClickAll(guide);
-            flow.DrawCard();
+            PlayTurn(flow);
+            flow.Next();
+            if (!flow.IsWaitingForDealer) { continue; }
+
+            Assert.AreEqual(TutorialStep.MatchResult, guide.CurrentEntry.Step, $"seed {seed}");
+            Assert.IsTrue(guide.IsWaitingForClick, $"seed {seed}");
+            return;
+        }
+
+        Assert.Fail("플레이어가 선이고 두 번째 판이 딜러 차례로 이어지는 시드가 필요하다");
+    }
+
+    // 플레이어 차례의 안내는 [카드 뽑기] 버튼이 켜지는 뽑기 화면에 띄우고, 버튼으로 넘어가는 화면이라 클릭을 기다리지 않는다
+    // (튜토리얼(1라운드) 세부 기획서 2-3장, 3장 안내-03)
+    [Test]
+    public void FirstRound_PlayerDraw_ShowsGuideWithoutWaitingForClick()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var (flow, guide, _) = StartRound(seed);
+            if (flow.IsWaitingForDealer) { continue; }
+
+            // 카드풀·선 정하기 안내가 클릭을 기다리는 동안 뽑기 안내는 대기열에서 기다렸다가, 클릭한 뒤 이어서 뜬다
+            var clickedSteps = new List<TutorialStep>();
+            while (guide.IsWaitingForClick)
+            {
+                clickedSteps.Add(guide.CurrentEntry.Step);
+                guide.Confirm();
+            }
+
+            CollectionAssert.AreEqual(new[] { TutorialStep.CardPool, TutorialStep.DecideFirst }, clickedSteps, $"seed {seed}");
+            Assert.AreEqual(GamePhase.Draw, flow.CurrentPhase, $"seed {seed}");
             Assert.AreEqual(TutorialStep.PlayerDistribute, guide.CurrentEntry.Step, $"seed {seed}");
             Assert.IsFalse(guide.IsWaitingForClick, $"seed {seed}");
             return;
@@ -492,7 +518,8 @@ public class TutorialGuideRulesTests
         Assert.Fail("딜러가 선인 시드가 필요하다");
     }
 
-    // 라운드가 끝나 안내를 지울 때는 아직 띄우지 않은 대기열의 안내도 함께 지운다
+    // 라운드가 끝나 안내를 지울 때는 아직 띄우지 않은 대기열의 안내도 함께 지운다.
+    // 이기면 승리 안내, 응급약을 먹기 전에 지면 응급약 안내만 남고, 둘 다 클릭을 기다리지 않는다
     [Test]
     public void RoundEnd_ClearsQueuedGuides()
     {
@@ -502,9 +529,28 @@ public class TutorialGuideRulesTests
             PlayUntilRoundEnd(flow);
 
             bool playerWon = flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
-            if (playerWon) { Assert.AreEqual(TutorialStep.RoundWin, guide.CurrentEntry.Step, $"seed {seed}"); }
-            else { Assert.IsNull(guide.CurrentEntry, $"seed {seed}"); }
+            TutorialStep expected = playerWon ? TutorialStep.RoundWin : TutorialStep.RoundLose;
+            Assert.AreEqual(expected, guide.CurrentEntry.Step, $"seed {seed}");
             Assert.IsFalse(guide.IsWaitingForClick, $"seed {seed}");
         }
+    }
+
+    // 응급약을 먹은 적이 있으면 1라운드를 다시 해서 져도 응급약 안내를 띄우지 않고, 말풍선도 남기지 않는다
+    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+    [Test]
+    public void RoundLost_AfterTakingMedicine_ShowsNoMedicineGuide()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var (flow, guide, shown) = StartRound(seed, autoClick: true, medicineCount: 1);
+            PlayUntilRoundEnd(flow);
+            if (flow.Health.GetHealth(Side.Player) > GameRules.MinHealth) { continue; }
+
+            CollectionAssert.DoesNotContain(shown, TutorialStep.RoundLose, $"seed {seed}");
+            Assert.IsNull(guide.CurrentEntry, $"seed {seed}");
+            return;
+        }
+
+        Assert.Fail("플레이어가 라운드를 지는 시드가 필요하다");
     }
 }

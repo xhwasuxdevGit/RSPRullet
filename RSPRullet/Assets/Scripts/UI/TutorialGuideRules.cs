@@ -11,8 +11,9 @@ public static class TutorialGuideRules
     private const int TutorialEndShuffle = 2;
 
     // 진행 단계가 바뀌었을 때 그 화면에 맞는 안내 단계. 안내가 없는 화면이면 null이다.
-    // 이미 띄운 단계인지와 라운드 번호는 TutorialGuide가 따로 확인한다
-    public static TutorialStep? GetStep(GamePhase phase, Side turnPlayer, int shuffleCount, bool playerWonRound)
+    // 이미 띄운 단계인지와 라운드 번호는 TutorialGuide가 따로 확인한다.
+    // medicineCount: 지금까지 응급약을 복용한 횟수. 응급약 안내는 처음 먹기 전(0회)에만 띄운다
+    public static TutorialStep? GetStep(GamePhase phase, Side turnPlayer, int shuffleCount, bool playerWonRound, int medicineCount)
     {
         switch (phase)
         {
@@ -23,16 +24,21 @@ public static class TutorialGuideRules
             // 선 정하기는 비겨도 같은 안내를 띄운다. 비기면 다시 섞는다는 설명이 안내 문구에 들어 있다
             case GamePhase.DecideFirst:
                 return TutorialStep.DecideFirst;
-            // 분배는 플레이어 차례면 내가 뽑은 카드를 고르는 화면, 딜러 차례면 딜러가 뽑고 고민하는 화면이다
+            // 플레이어 차례의 안내는 [카드 뽑기] 버튼이 켜지는 뽑기 화면에 띄운다. 딜러 차례의 뽑기는 자동이라 안내가 없다
+            case GamePhase.Draw:
+                return turnPlayer == Side.Player ? TutorialStep.PlayerDistribute : (TutorialStep?)null;
+            // 분배는 딜러 차례일 때만 안내한다. 딜러가 뽑고 고민하는 화면이다 (플레이어 차례는 뽑기 화면에서 이미 안내했다)
             case GamePhase.Distribute:
-                return turnPlayer == Side.Player ? TutorialStep.PlayerDistribute : TutorialStep.DealerDistribute;
+                return turnPlayer == Side.Dealer ? TutorialStep.DealerDistribute : (TutorialStep?)null;
             case GamePhase.ShowResult:
                 return TutorialStep.MatchResult;
             case GamePhase.Settlement:
                 return TutorialStep.Settlement;
-            // 라운드를 지면 안내 없이 응급약 복용으로 다시 시작한다 (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+            // 라운드를 지면 응급약을 처음 먹기 전에만 응급약 안내를 띄운다. 지난 안내 단계는 다시 띄우지 않는다
+            // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
             case GamePhase.RoundEnd:
-                return playerWonRound ? TutorialStep.RoundWin : (TutorialStep?)null;
+                if (playerWonRound) { return TutorialStep.RoundWin; }
+                return medicineCount == 0 ? TutorialStep.RoundLose : (TutorialStep?)null;
             default:
                 return null;
         }
