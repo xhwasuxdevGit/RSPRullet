@@ -19,6 +19,9 @@ public class TableCardsUI : MonoBehaviour
     [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private DisplayTimeSettings _displayTimeSettings;
 
+    // 진행 안내 배너가 떠 있는 동안에는 다음 연출을 시작하지 않는다 (RSP-86)
+    [SerializeField] private BannerUI _banner;
+
     [SerializeField] private CardView _playerSlot;
     [SerializeField] private CardView _dealerSlot;
     [SerializeField] private CardView _drawnCard;
@@ -254,6 +257,9 @@ public class TableCardsUI : MonoBehaviour
 
         while (_steps.Count > 0)
         {
+            // 배너는 같은 순간의 알림보다 먼저 켜지므로, 다음 프레임에는 이미 떠 있다. 예: 딜러 차례 판의 들어 올리기는 판 시작 배너가 꺼진 뒤에 한다
+            while (_banner.IsShowing) { yield return null; }
+
             yield return StartCoroutine(_steps.Dequeue());
         }
 

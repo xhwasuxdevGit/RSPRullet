@@ -83,7 +83,8 @@ public class GameFlowTests
         if (flow.CurrentPhase == GamePhase.Reveal) { flow.Next(); }
     }
 
-    // 두 판을 진행해 정산 확인 지점(또는 판 도중 라운드 종료)까지 간다
+    // 두 판을 진행해 정산 확인 지점(또는 판 도중 라운드 종료)까지 간다.
+    // 정산은 카드 정산 배너를 보여 주는 동안 결과를 반영하지 않고 멈추므로, 배너가 꺼진 것으로 보고 결과 반영까지 넘긴다
     private static void PlayOneShuffle(GameFlow flow)
     {
         PlayTurn(flow);
@@ -95,11 +96,15 @@ public class GameFlowTests
 
         PlayTurn(flow);
         flow.Next();
+        if (flow.IsWaitingSettlementReveal) { flow.Next(); }
     }
 
     // 정산 결과 표시를 끝내고(표시 시간이 지난 것으로 본다), 라운드가 이어지면 [다음 카드 셔플]까지 눌러 다음 카드 셔플의 첫 번째 판까지 간다
     private static void FinishSettlement(GameFlow flow)
     {
+        // 카드 정산 배너 때문에 결과 반영 전에 멈춰 있으면 먼저 반영한다
+        if (flow.IsWaitingSettlementReveal) { flow.Next(); }
+
         flow.Next();
         if (flow.CurrentPhase != GamePhase.SettlementWait) { return; }
 
@@ -383,11 +388,17 @@ public class GameFlowTests
                 continue;
             }
 
+            var banners = new List<BannerType>();
+            flow.BannerRequested += banners.Add;
             Assert.IsTrue(flow.Next());
 
             // 두 번째 판과 정산 없이 끝나므로 더미에 3장이 남는다
             Assert.AreEqual(GamePhase.RoundEnd, flow.CurrentPhase);
             Assert.AreEqual(3, flow.Table.RemainingDeckCount);
+
+            // 라운드 종료 때 이긴 쪽에 맞는 라운드 승패 배너를 한 번 요청한다 (RSP-86)
+            BannerType expectedBanner = flow.Health.GetHealth(Side.Player) == 0 ? BannerType.RoundLose : BannerType.RoundWin;
+            CollectionAssert.AreEqual(new[] { expectedBanner }, banners);
             return;
         }
 
@@ -457,6 +468,79 @@ public class GameFlowTests
         }
 
         Assert.Fail("정산에서 한쪽만 체력 0이 되는 시드를 찾지 못했다");
+    }
+
+    // 진행 안내 배너 (RSP-86). 라운드의 첫 셔플은 라운드 배너로 시작하고 셔플 배너는 띄우지 않는다.
+    // 선 정하기가 비기면 비김 배너만 띄우고 다시 섞으며, 선이 정해지면 선 결과 배너로 끝난다(판 시작 배너는 없다)
+    [Test]
+    public void Banners_FirstShuffle_RoundStartThenFirstTurn()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
+            var banners = new List<BannerType>();
+            flow.BannerRequested += banners.Add;
+            flow.StartRound();
+            FinishShuffle(flow);
+
+            bool isPlayerTurn = flow.Table.TurnPlayer == Side.Player;
+            int last = banners.Count - 1;
+            Assert.AreEqual(BannerType.RoundStart, banners[0], $"seed {seed}");
+            Assert.AreEqual(isPlayerTurn ? BannerType.PlayerFirst : BannerType.DealerFirst, banners[last], $"seed {seed}");
+            for (int i = 1; i < last; i++) { Assert.AreEqual(BannerType.FirstTurnDraw, banners[i], $"seed {seed}"); }
+        }
+    }
+
+    // 판 결과 배너는 판 결과 단계로 바뀌기 전에 요청한다. 다음 카드 셔플은 셔플 배너를 가장 먼저 요청한다
+    [Test]
+    public void Banners_MatchResultBeforeShowResult_NextShuffleStartsWithShuffleBanner()
+    {
+        for (int seed = 0; seed < SeedCount; seed++)
+        {
+            GameFlow flow = StartFlow(seed);
+            var events = new List<string>();
+            flow.BannerRequested += type => events.Add(type.ToString());
+            flow.PhaseChanged += (previous, next) => events.Add(next.ToString());
+
+            PlayTurn(flow);
+
+            // 첫 번째 판은 양쪽 체력이 같게 시작하므로 끝난 체력으로 승패를 안다
+            int playerHealth = flow.Health.GetHealth(Side.Player);
+            int dealerHealth = flow.Health.GetHealth(Side.Dealer);
+            BannerType expected = playerHealth > dealerHealth ? BannerType.MatchWin
+                : playerHealth < dealerHealth ? BannerType.MatchLose : BannerType.MatchDraw;
+            int bannerIndex = events.IndexOf(expected.ToString());
+            Assert.GreaterOrEqual(bannerIndex, 0, $"seed {seed}");
+            Assert.AreEqual(GamePhase.ShowResult.ToString(), events[bannerIndex + 1], $"seed {seed}");
+
+            flow.Next();
+            if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            PlayTurn(flow);
+            var records = new List<string>();
+            flow.JudgmentRecorded += records.Add;
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
+
+            // 정산 단계는 카드 정산 배너만 요청하고, 배너가 꺼질 때(Next)까지 남은 카드 공개·기록을 하지 않는다
+            Assert.AreEqual(BannerType.SettlementStart.ToString(), events[events.Count - 1], $"seed {seed}");
+            Assert.IsTrue(flow.IsWaitingSettlementReveal, $"seed {seed}");
+            Assert.AreEqual(0, records.Count, $"seed {seed}");
+            flow.Next();
+            Assert.IsFalse(flow.IsWaitingSettlementReveal, $"seed {seed}");
+            Assert.AreEqual(GamePhase.Settlement, flow.CurrentPhase, $"seed {seed}");
+            Assert.Greater(records.Count, 0, $"seed {seed}");
+
+            flow.Next();
+            if (flow.CurrentPhase != GamePhase.SettlementWait) { continue; }
+
+            events.Clear();
+            flow.Next();
+            Assert.AreEqual(BannerType.ShuffleStart.ToString(), events[0], $"seed {seed}");
+            return;
+        }
+
+        Assert.Fail("정산 뒤 라운드가 이어지는 시드를 찾지 못했다");
     }
 
     // 상단 정보 UI (RSP-43). 라운드 번호는 라운드 설정 값을 그대로 쓴다
@@ -1132,10 +1216,14 @@ public class GameFlowTests
             flow.Next();
             if (flow.CurrentPhase != GamePhase.Settlement) { continue; }
 
+            // 정산 결과를 먼저 반영해, 아래 기록에는 다음 카드 셔플의 기록만 모은다
+            flow.Next();
             var logs = new List<string>();
             var records = new List<string>();
+            var banners = new List<BannerType>();
             flow.Logged += logs.Add;
             flow.JudgmentRecorded += records.Add;
+            flow.BannerRequested += banners.Add;
             FinishSettlement(flow);
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
@@ -1145,6 +1233,9 @@ public class GameFlowTests
             Assert.AreEqual(Side.Player, flow.Table.TurnPlayer, $"seed {seed}");
             Assert.IsTrue(logs.Exists(log => log.StartsWith("시계 이월로 선 정하기 생략")), $"seed {seed}");
             Assert.AreEqual(0, records.Count, $"seed {seed}");
+
+            // 선 정하기를 건너뛰어도 시계로 정해진 선을 선 결과 배너로 알린다 (RSP-86)
+            CollectionAssert.AreEqual(new[] { BannerType.ShuffleStart, BannerType.PlayerFirst }, banners, $"seed {seed}");
 
             // 이번 카드 셔플은 시계를 쓰지 않고 끝내, 다음 카드 셔플에서 선 정하기가 다시 나오는지 본다.
             // 딜러가 시계를 쓴 시드는 이월이 다시 생길 수 있어 건너뛴다

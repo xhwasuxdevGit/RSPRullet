@@ -22,6 +22,9 @@ public class CardShuffleUI : MonoBehaviour
     // 카드 앞면·뒷면 그림을 가진 테이블 카드 표시. 그림 연결을 한 곳에만 둔다
     [SerializeField] private TableCardsUI _tableCards;
 
+    // 라운드·셔플 시작 배너가 떠 있으면 카드풀 공개를 배너가 꺼진 뒤로 미룬다 (RSP-86)
+    [SerializeField] private BannerUI _banner;
+
     // 카드풀 공개 때 7장을 늘어놓는 자리 (PFB_TableCard)
     [SerializeField] private CardView[] _spreadCards;
 
@@ -39,6 +42,9 @@ public class CardShuffleUI : MonoBehaviour
     private CardMotion[] _spreadMotions;
     private Vector3[] _deckHomeLocalPositions;
     private bool _isPlaying;
+
+    // 배너가 꺼지면 카드풀을 공개해야 하는지
+    private bool _isCardPoolPending;
 
     private void Awake()
     {
@@ -58,17 +64,36 @@ public class CardShuffleUI : MonoBehaviour
 
         _flow.PhaseChanged += OnPhaseChanged;
         _flow.CardsChanged += OnCardsChanged;
+        _banner.ShowingChanged += OnBannerShowingChanged;
     }
 
     private void OnDestroy()
     {
         _flow.PhaseChanged -= OnPhaseChanged;
         _flow.CardsChanged -= OnCardsChanged;
+        _banner.ShowingChanged -= OnBannerShowingChanged;
     }
 
     // 카드 셔플 시작과 선 정하기가 비겨 다시 섞을 때 모두 카드풀 공개로 들어온다
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
     {
+        if (!_flow.IsShowingCardPool) { return; }
+
+        if (_banner.IsShowing)
+        {
+            _isCardPoolPending = true;
+            return;
+        }
+
+        ShowCardPool();
+    }
+
+    // 카드풀 공개 표시 시간도 배너가 꺼진 뒤부터 세므로(GameFlowRunner), 공개 중인 상태 그대로다
+    private void OnBannerShowingChanged()
+    {
+        if (_banner.IsShowing || !_isCardPoolPending) { return; }
+
+        _isCardPoolPending = false;
         if (_flow.IsShowingCardPool) { ShowCardPool(); }
     }
 

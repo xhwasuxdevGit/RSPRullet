@@ -419,6 +419,8 @@ public class TutorialGuideRulesTests
 
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
 
+            // 카드 정산 배너가 꺼진 것으로 보고 정산 결과를 반영한다
+            flow.Next();
             Assert.AreEqual(TutorialStep.Settlement, guide.CurrentEntry.Step, $"seed {seed}");
             flow.Next();
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }

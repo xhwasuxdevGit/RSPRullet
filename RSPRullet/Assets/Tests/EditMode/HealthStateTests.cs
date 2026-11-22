@@ -111,6 +111,7 @@ public class HealthStateTests
         Assert.AreEqual(0, health.GetHealth(Side.Player));
         Assert.AreEqual(1, health.GetHealth(Side.Dealer));
         Assert.IsTrue(isRoundOver);
+        Assert.IsFalse(health.WasBothZeroRestored);
     }
 
     // 예시 ③: 플레이어 1, 딜러 1. 서로 공격형 → 양쪽 0 → 둘 다 1로 두고 계속
@@ -124,6 +125,7 @@ public class HealthStateTests
         Assert.AreEqual(1, health.GetHealth(Side.Player));
         Assert.AreEqual(1, health.GetHealth(Side.Dealer));
         Assert.IsFalse(isRoundOver);
+        Assert.IsTrue(health.WasBothZeroRestored);
     }
 
     // 예시 ④: 딜러 10. 딜러 회복형(+1), 플레이어 공격형(-1) → 10 + (1 - 1) = 10
