@@ -116,7 +116,8 @@ public class TutorialGuideRulesTests
     {
         while (flow.CurrentPhase != GamePhase.RoundEnd)
         {
-            if (flow.CurrentPhase == GamePhase.ShowResult || flow.CurrentPhase == GamePhase.Settlement)
+            if (flow.CurrentPhase == GamePhase.ShowResult || flow.CurrentPhase == GamePhase.Settlement ||
+                flow.CurrentPhase == GamePhase.SettlementWait)
             {
                 flow.Next();
                 continue;
@@ -167,10 +168,12 @@ public class TutorialGuideRulesTests
         Assert.IsNull(TutorialGuideRules.GetStep(phase, Side.Player, 1, true));
     }
 
-    // 정산에서 넘어갈 때와 라운드 종료에 들어갈 때만 지운다 (튜토리얼(1라운드) 세부 기획서 2-2장 표시 방식)
-    [TestCase(GamePhase.Settlement, GamePhase.StartCardDeal, true)]
+    // [다음 카드 셔플]로 넘어갈 때와 라운드 종료에 들어갈 때만 지운다 (튜토리얼(1라운드) 세부 기획서 2-2장 표시 방식).
+    // 정산 결과 표시에서 다음 카드 셔플 대기로 갈 때는 정산 안내를 남긴다
+    [TestCase(GamePhase.SettlementWait, GamePhase.StartCardDeal, true)]
     [TestCase(GamePhase.ShowResult, GamePhase.RoundEnd, true)]
     [TestCase(GamePhase.Settlement, GamePhase.RoundEnd, true)]
+    [TestCase(GamePhase.Settlement, GamePhase.SettlementWait, false)]
     [TestCase(GamePhase.ShowResult, GamePhase.Draw, false)]
     [TestCase(GamePhase.DecideFirst, GamePhase.Draw, false)]
     [TestCase(GamePhase.Distribute, GamePhase.ShowResult, false)]
@@ -384,6 +387,11 @@ public class TutorialGuideRulesTests
             Assert.AreEqual(TutorialStep.Settlement, guide.CurrentEntry.Step, $"seed {seed}");
             flow.Next();
             if (flow.CurrentPhase == GamePhase.RoundEnd) { continue; }
+
+            // 다음 카드 셔플 대기 동안에는 정산 안내가 남아 있다
+            Assert.AreEqual(GamePhase.SettlementWait, flow.CurrentPhase, $"seed {seed}");
+            Assert.AreEqual(TutorialStep.Settlement, guide.CurrentEntry.Step, $"seed {seed}");
+            flow.Next();
 
             Assert.AreEqual(TutorialStep.TutorialEnd, guide.CurrentEntry.Step, $"seed {seed}");
 

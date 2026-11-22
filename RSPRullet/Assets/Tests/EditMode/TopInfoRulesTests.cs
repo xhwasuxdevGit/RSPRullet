@@ -28,11 +28,13 @@ public class TopInfoRulesTests
     }
 
     // 정산 중에는 판 이름 대신 "정산"을 보여 주고, 턴 플레이어는 보여 주지 않는다
-    [TestCase(Side.Player)]
-    [TestCase(Side.Dealer)]
-    public void Settlement_ShowsSettlement_WithoutTurnPlayer(Side turnPlayer)
+    [TestCase(GamePhase.Settlement, Side.Player)]
+    [TestCase(GamePhase.Settlement, Side.Dealer)]
+    [TestCase(GamePhase.SettlementWait, Side.Player)]
+    [TestCase(GamePhase.SettlementWait, Side.Dealer)]
+    public void Settlement_ShowsSettlement_WithoutTurnPlayer(GamePhase phase, Side turnPlayer)
     {
-        string text = GetText(1, 2, GamePhase.Settlement, 1, turnPlayer);
+        string text = GetText(1, 2, phase, 1, turnPlayer);
 
         Assert.AreEqual("1라운드    |    <color=#D9A626>카드 섞기 2번째</color>    |    정산", text);
     }

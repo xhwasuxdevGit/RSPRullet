@@ -12,6 +12,7 @@ public enum GamePhase
     Reveal,           // ⑤ 5-5 카드 공개
     Judge,            // ⑤ 5-6 한 판의 판정
     ShowResult,       // ⑤ 5-7 단계별 표시
-    Settlement,       // ⑥ 정산
+    Settlement,       // ⑥ 정산 (결과 표시, 버튼 없이 표시 시간 뒤 넘어감)
+    SettlementWait,   // ⑥ 정산 뒤 다음 카드 셔플 입력 대기 (UI·UX 화면 흐름 세부 기획서 3-1장 정산-02)
     RoundEnd          // ⑦ 라운드 종료
 }

@@ -17,9 +17,6 @@ public class GameFlow
     // 카드 셔플마다 새로 만든다
     private TableState _table;
 
-    // 정산 결과 라운드가 끝나는지. 정산 확인 입력(Next)에서 진행 단계로 넘긴다
-    private bool _isRoundOverAfterSettlement;
-
     public event Action<string> Logged;
     public event Action<string> JudgmentRecorded;
 
@@ -155,20 +152,24 @@ public class GameFlow
         return true;
     }
     
+    // 판 결과·정산 결과 표시가 끝났을 때(씬 연결이 표시 시간 뒤 넣음)와 [다음 카드 셔플]을 눌렀을 때 받는다
     public bool Next()
     {
-        if (CurrentPhase == GamePhase.ShowResult)
+        switch (CurrentPhase)
         {
-            FinishMatch();
-            return true;
+            case GamePhase.ShowResult:
+                FinishMatch();
+                return true;
+            case GamePhase.Settlement:
+                FinishSettlement();
+                return true;
+            case GamePhase.SettlementWait:
+                _phaseMachine.CompleteSettlementWait();
+                StartShuffle();
+                return true;
+            default:
+                return Ignore(nameof(Next));
         }
-
-        if (CurrentPhase != GamePhase.Settlement) { return Ignore(nameof(Next)); }
-
-        _phaseMachine.CompleteSettlement(_isRoundOverAfterSettlement);
-        if (CurrentPhase == GamePhase.RoundEnd) { LogRoundEnd(); }
-        else { StartShuffle(); }
-        return true;
     }
 
     // 카드풀 생성 → 시작 카드 → 선 정하기. 선 정하기에서 비기면 카드풀부터 다시 만든다
@@ -282,7 +283,7 @@ public class GameFlow
         }
     }
 
-    // 남은 1장 공개 → 양쪽 조합 효과 동시 적용. 정산 확인 입력을 기다린다
+    // 남은 1장 공개 → 양쪽 조합 효과 동시 적용. 정산 결과를 보여 주는 동안 멈춘다
     private void ApplySettlement()
     {
         Card remaining = _table.RevealRemainingCard();
@@ -291,11 +292,19 @@ public class GameFlow
 
         CombinationType playerCombination = _table.JudgeCombination(Side.Player);
         CombinationType dealerCombination = _table.JudgeCombination(Side.Dealer);
-        _isRoundOverAfterSettlement = _health.ApplySettlement(playerCombination, dealerCombination);
+        _health.ApplySettlement(playerCombination, dealerCombination);
         Record(JudgmentRecordRules.GetCombinationText(playerCombination, dealerCombination,
             _health.GetLastChange(Side.Player), _health.GetLastChange(Side.Dealer)));
         Log(FlowLogText.GetSettlement(playerCombination, dealerCombination,
             _health.GetHealth(Side.Player), _health.GetHealth(Side.Dealer)));
+    }
+
+    // 정산 결과 표시 뒤: 한쪽만 체력 0이면 라운드 종료, 그 외는 [다음 카드 셔플] 대기.
+    // 둘 다 0이었으면 정산 반영 때 둘 다 1로 되돌렸으므로(HealthState.ApplySettlement) 판 결과 뒤와 같은 값으로 판단한다
+    private void FinishSettlement()
+    {
+        _phaseMachine.CompleteSettlement(_health.IsAnyoneAtZero);
+        if (CurrentPhase == GamePhase.RoundEnd) { LogRoundEnd(); }
     }
 
     private void LogRoundEnd()

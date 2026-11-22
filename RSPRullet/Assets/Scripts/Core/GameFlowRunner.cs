@@ -21,6 +21,10 @@ public class GameFlowRunner : MonoBehaviour
     private bool _isShowingMatchResult;
     private float _matchResultTimeLeft;
 
+    // 정산 결과를 보여 주는 중인지와 남은 시간
+    private bool _isShowingSettlement;
+    private float _settlementTimeLeft;
+
     // 딜러가 분배하기 전에 기다리는 중인지와 남은 시간
     private bool _isDealerThinking;
     private float _dealerThinkingTimeLeft;
@@ -116,6 +120,7 @@ public class GameFlowRunner : MonoBehaviour
         UpdateDealerThinking();
         UpdateDealerItemWait();
         UpdateMatchResult();
+        UpdateSettlement();
     }
 
     // 딜러는 대기 시간이 지나야 뽑아 둔 카드를 분배한다 (연출·아트·사운드 세부 기획서 7-3장).
@@ -200,6 +205,34 @@ public class GameFlowRunner : MonoBehaviour
         }
 
         _isShowingMatchResult = false;
+        Flow.Next();
+    }
+
+    // 정산 결과도 버튼 없이 표시 시간이 지나면 라운드 종료 또는 [다음 카드 셔플] 대기로 넘어간다
+    // (UI·UX 화면 흐름 세부 기획서 3-1장 정산-01, 3-2장 읽는 시간). 표시 중에는 켤 단계별 버튼이 없어 입력이 잠긴다 (PhaseButtonRules).
+    // 정산 안내가 클릭을 기다리면 표시 시간이 지나도 플레이어가 클릭할 때까지 기다린다 (튜토리얼(1라운드) 세부 기획서 2-3장)
+    private void UpdateSettlement()
+    {
+        if (Flow.CurrentPhase != GamePhase.Settlement)
+        {
+            _isShowingSettlement = false;
+            return;
+        }
+
+        if (!_isShowingSettlement)
+        {
+            _isShowingSettlement = true;
+            _settlementTimeLeft = _displayTimeSettings.SettlementSeconds;
+            return;
+        }
+
+        _settlementTimeLeft -= Time.deltaTime;
+        if (!TutorialGuideRules.CanAdvance(_settlementTimeLeft <= 0f, Guide.IsWaitingForClick))
+        {
+            return;
+        }
+
+        _isShowingSettlement = false;
         Flow.Next();
     }
 }

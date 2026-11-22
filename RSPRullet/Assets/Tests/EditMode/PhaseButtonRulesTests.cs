@@ -44,10 +44,15 @@ public class PhaseButtonRulesTests
         Assert.AreEqual(PhaseButton.Exchange | PhaseButton.KeepCards, buttons);
     }
 
+    // 정산 결과 표시 중에는 버튼 없이 입력을 잠그고, 다음 카드 셔플 대기에서 [다음 카드 셔플]을 켠다
     [Test]
-    public void Settlement_ShowsNextShuffle()
+    public void Settlement_LocksInput_ThenWaitShowsNextShuffle()
     {
-        Assert.AreEqual(PhaseButton.NextShuffle, GetButtons(GamePhase.Settlement, Side.Player));
+        PhaseButton settlementButtons = GetButtons(GamePhase.Settlement, Side.Player);
+        Assert.AreEqual(PhaseButton.None, settlementButtons);
+        Assert.IsTrue(PhaseButtonRules.IsInputLocked(settlementButtons));
+
+        Assert.AreEqual(PhaseButton.NextShuffle, GetButtons(GamePhase.SettlementWait, Side.Player));
     }
 
     [TestCase(true, false, PhaseButton.NextRound)]

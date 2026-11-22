@@ -119,7 +119,8 @@ public class PhaseMachine
         return true;
     }
 
-    // 정산 결과 한쪽만 체력 0이면 라운드 종료, 그 외(둘 다 0 → 1로 되돌린 경우 포함)는 다음 카드 셔플
+    // 정산 결과 표시가 끝난 뒤: 한쪽만 체력 0이면 라운드 종료,
+    // 그 외(둘 다 0 → 1로 되돌린 경우 포함)는 다음 카드 셔플 입력을 기다린다 (UI·UX 화면 흐름 세부 기획서 3-1장 정산-01·02)
     public bool CompleteSettlement(bool isRoundOver)
     {
         if (CurrentPhase != GamePhase.Settlement)
@@ -127,8 +128,14 @@ public class PhaseMachine
             return Ignore(nameof(CompleteSettlement));
         }
 
-        Move(isRoundOver ? GamePhase.RoundEnd : GamePhase.CardShuffle);
+        Move(isRoundOver ? GamePhase.RoundEnd : GamePhase.SettlementWait);
         return true;
+    }
+
+    // [다음 카드 셔플] 입력
+    public bool CompleteSettlementWait()
+    {
+        return TryMove(GamePhase.SettlementWait, GamePhase.CardShuffle);
     }
 
     private void StartFirstMatch()

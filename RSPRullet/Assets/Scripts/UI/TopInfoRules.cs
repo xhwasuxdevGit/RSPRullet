@@ -10,14 +10,14 @@ public static class TopInfoRules
     private const string Separator = "    |    ";
     private const string SettlementName = "정산";
 
-    // 정산 단계에서는 판 대신 "정산"을 보여 주고 턴 플레이어는 빼고, 그 밖의 단계는 지금 판(matchIndex 0, 1)과 턴 플레이어를 보여 준다.
+    // 정산 단계(결과 표시와 다음 카드 섞기 대기)에서는 판 대신 "정산"을 보여 주고 턴 플레이어는 빼고, 그 밖의 단계는 지금 판(matchIndex 0, 1)과 턴 플레이어를 보여 준다.
     // 두 번째 판이 끝나면 진행 흐름이 턴을 상대에게 넘기지만(GameFlow.FinishMatch) 다음 카드 섞기의 선은 선 정하기로 다시 정하므로,
     // 정산 중의 턴 플레이어는 의미가 없다
     public static string GetText(int roundNumber, int shuffleCount, GamePhase phase, int matchIndex, Side turnPlayer,
         string shuffleColorHex, string playerColorHex, string dealerColorHex)
     {
         string header = $"{roundNumber}라운드{Separator}{Colored($"카드 섞기 {shuffleCount}번째", shuffleColorHex)}{Separator}";
-        if (phase == GamePhase.Settlement)
+        if (phase == GamePhase.Settlement || phase == GamePhase.SettlementWait)
         {
             return header + SettlementName;
         }

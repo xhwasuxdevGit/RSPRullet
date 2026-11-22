@@ -23,6 +23,7 @@ public static class ItemUseDisplayRules
 
             // 두 번째 판에 쓴 시계는 다음 카드 셔플의 첫 번째 판이 시작될 때까지 남긴다
             case GamePhase.Settlement:
+            case GamePhase.SettlementWait:
                 return item == ItemType.Clock;
 
             // 뽑기·분배는 새 판이라 이번 판에 쓴 아이템이 아직 없다. 지난 판 기록이 남아 있어도 보여 주지 않는다

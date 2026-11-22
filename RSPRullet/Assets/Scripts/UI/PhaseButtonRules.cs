@@ -19,7 +19,9 @@ public static class PhaseButtonRules
                 return GetItemButtons(turnPlayer, hasUsableItem, isWaitingForMagnifierChoice);
             case GamePhase.ItemOpponent:
                 return GetItemButtons(GetOpponent(turnPlayer), hasUsableItem, isWaitingForMagnifierChoice);
-            case GamePhase.Settlement:
+            // 정산 결과는 버튼 없이 표시 시간 동안 보여 주고(입력 잠금), 라운드가 이어지면 그 뒤 대기에서 [다음 카드 셔플]을 켠다
+            // (UI·UX 화면 흐름 세부 기획서 3-1장 정산-01·02)
+            case GamePhase.SettlementWait:
                 return PhaseButton.NextShuffle;
             case GamePhase.RoundEnd:
                 return GetRoundEndButton(playerWonRound, isFinalRound);

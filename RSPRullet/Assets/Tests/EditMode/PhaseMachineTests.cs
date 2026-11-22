@@ -116,8 +116,8 @@ public class PhaseMachineTests
     }
 
     [TestCase(true, GamePhase.RoundEnd)]
-    [TestCase(false, GamePhase.CardShuffle)]
-    public void Settlement_GoesToRoundEndOrNextShuffle(bool isRoundOver, GamePhase expected)
+    [TestCase(false, GamePhase.SettlementWait)]
+    public void Settlement_GoesToRoundEndOrSettlementWait(bool isRoundOver, GamePhase expected)
     {
         var machine = MakeAtDecideFirst();
         machine.CompleteDecideFirst(isDraw: false);
@@ -132,6 +132,25 @@ public class PhaseMachineTests
     }
 
     [Test]
+    public void SettlementWait_GoesToCardShuffle_AndIgnoredDuringSettlement()
+    {
+        var machine = MakeAtDecideFirst();
+        machine.CompleteDecideFirst(isDraw: false);
+        PlayMatchUntilShowResult(machine);
+        machine.CompleteShowResult(someoneAtZeroHealth: false);
+        PlayMatchUntilShowResult(machine);
+        machine.CompleteShowResult(someoneAtZeroHealth: false);
+
+        // 정산 결과를 보여 주는 중에는 다음 카드 셔플 입력을 받지 않는다
+        Assert.IsFalse(machine.CompleteSettlementWait());
+        Assert.AreEqual(GamePhase.Settlement, machine.CurrentPhase);
+
+        machine.CompleteSettlement(isRoundOver: false);
+        Assert.IsTrue(machine.CompleteSettlementWait());
+        Assert.AreEqual(GamePhase.CardShuffle, machine.CurrentPhase);
+    }
+
+    [Test]
     public void NextShuffle_StartsFromFirstMatchAgain()
     {
         var machine = MakeAtDecideFirst();
@@ -141,6 +160,7 @@ public class PhaseMachineTests
         PlayMatchUntilShowResult(machine);
         machine.CompleteShowResult(someoneAtZeroHealth: false);
         machine.CompleteSettlement(isRoundOver: false);
+        machine.CompleteSettlementWait();
 
         machine.CompleteCardShuffle();
         machine.CompleteStartCardDeal(hasClockCarryOver: false);
