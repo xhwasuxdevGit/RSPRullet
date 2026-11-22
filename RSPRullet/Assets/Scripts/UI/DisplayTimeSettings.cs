@@ -58,6 +58,17 @@ public class DisplayTimeSettings : ScriptableObject
     // 결과 배너(선 정하기·판 승패·양쪽 체력 0 복구)를 다 나타난 뒤 보여 주는 시간(초) (연출·아트·사운드 세부 기획서 7-2장 선 정하기)
     [SerializeField, Range(0.6f, 1.5f)] private float _bannerResultReadSeconds = 1.0f;
 
+    // 라운드 전환 페이드 시간 (RSP-91). 기획서에 값이 없어 착수 때 정했다
+    // 씬을 다시 불러오기 전에 화면이 검게 어두워지는 시간(초)
+    [SerializeField, Range(0.3f, 1.0f)] private float _screenFadeOutSeconds = 0.5f;
+
+    // 새 라운드 씬이 검은 화면에서 밝아지는 시간(초)
+    [SerializeField, Range(0.3f, 1.0f)] private float _screenFadeInSeconds = 0.5f;
+
+    // 라운드 승패 배너가 검은 화면 위에서 사라지는 시간(초). 승패 배너가 화면을 덮고 있어, 라운드 승패 때 보이는 암전은 이 시간이다.
+    // 다른 배너의 나타남·사라짐(Banner Appear Seconds)과 따로 둔다
+    [SerializeField, Range(0.5f, 1.5f)] private float _roundResultBannerHideSeconds = 1.0f;
+
     public float MatchResultSeconds => _matchResultSeconds;
     public float SettlementSeconds => _settlementSeconds;
     public float CardPoolSeconds => _cardPoolSeconds;
@@ -74,4 +85,7 @@ public class DisplayTimeSettings : ScriptableObject
     public float BannerAppearSeconds => _bannerAppearSeconds;
     public float BannerTransitionReadSeconds => _bannerTransitionReadSeconds;
     public float BannerResultReadSeconds => _bannerResultReadSeconds;
+    public float ScreenFadeOutSeconds => _screenFadeOutSeconds;
+    public float ScreenFadeInSeconds => _screenFadeInSeconds;
+    public float RoundResultBannerHideSeconds => _roundResultBannerHideSeconds;
 }

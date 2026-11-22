@@ -74,13 +74,11 @@ public class TutorialGuideRulesTests
 
     // 안내가 바뀔 때마다 띄운 단계를 기록한다. 라운드 시작 전에 만들어야 첫 카드풀 안내부터 받는다.
     // autoClick이면 클릭 대기 안내가 뜨는 즉시 클릭해, 대기열의 안내가 모두 차례로 뜨게 한다.
-    // 카드 셔플은 클릭을 기다리지 않고 첫 번째 판까지 넘겨, 클릭 대기 중에 나온 안내가 대기열에 쌓이는 경우도 확인한다.
-    // medicineCount는 이 라운드를 시작할 때까지 응급약을 복용한 횟수다
-    private (GameFlow flow, TutorialGuide guide, List<TutorialStep> shown) StartRound(int seed, bool autoClick = false,
-        int medicineCount = 0)
+    // 카드 셔플은 클릭을 기다리지 않고 첫 번째 판까지 넘겨, 클릭 대기 중에 나온 안내가 대기열에 쌓이는 경우도 확인한다
+    private (GameFlow flow, TutorialGuide guide, List<TutorialStep> shown) StartRound(int seed, bool autoClick = false)
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
-        var guide = new TutorialGuide(flow, _tutorialSettings, medicineCount);
+        var guide = new TutorialGuide(flow, _tutorialSettings);
         List<TutorialStep> shown = RecordShownSteps(guide, autoClick);
         flow.StartRound();
         FinishShuffle(flow);
@@ -158,10 +156,9 @@ public class TutorialGuideRulesTests
     [TestCase(GamePhase.Distribute, Side.Dealer, TutorialStep.DealerDistribute)]
     [TestCase(GamePhase.ShowResult, Side.Player, TutorialStep.MatchResult)]
     [TestCase(GamePhase.Settlement, Side.Player, TutorialStep.Settlement)]
-    [TestCase(GamePhase.RoundEnd, Side.Player, TutorialStep.RoundWin)]
     public void GetStep_ReturnsStepForScreen(GamePhase phase, Side turnPlayer, TutorialStep expected)
     {
-        Assert.AreEqual(expected, TutorialGuideRules.GetStep(phase, turnPlayer, 1, true, 0));
+        Assert.AreEqual(expected, TutorialGuideRules.GetStep(phase, turnPlayer, 1));
     }
 
     // 카드풀 공개는 두 번째 카드 셔플이면 튜토리얼 종료 안내, 그 뒤로는 안내가 없다
@@ -169,24 +166,26 @@ public class TutorialGuideRulesTests
     [TestCase(3, null)]
     public void GetStep_LaterShuffleCardPool_ReturnsTutorialEndOnlyOnSecond(int shuffleCount, TutorialStep? expected)
     {
-        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.StartCardDeal, Side.Player, shuffleCount, true, 0));
+        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.StartCardDeal, Side.Player, shuffleCount));
     }
 
-    // 라운드를 지면 아이템 예고 안내 대신 응급약 안내를 띄우되, 응급약을 처음 먹기 전(0회)에만 띄운다
-    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
-    [TestCase(0, TutorialStep.RoundLose)]
-    [TestCase(1, null)]
-    [TestCase(2, null)]
-    public void GetStep_RoundLost_ReturnsMedicineGuideOnlyBeforeFirstMedicine(int medicineCount, TutorialStep? expected)
-    {
-        Assert.AreEqual(expected, TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1, false, medicineCount));
-    }
-
-    // 라운드를 이기면 응급약을 먹은 적이 있어도 승리 안내를 띄운다
+    // 라운드 종료에는 말풍선 안내가 없다. 승리·응급약 안내는 라운드 전환 화면(ScreenFadeUI)이 검은 화면에 보여 준다 (RSP-91)
     [Test]
-    public void GetStep_RoundWon_ReturnsRoundWinRegardlessOfMedicine()
+    public void GetStep_RoundEnd_ReturnsNoBubbleGuide()
     {
-        Assert.AreEqual(TutorialStep.RoundWin, TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1, true, 3));
+        Assert.IsNull(TutorialGuideRules.GetStep(GamePhase.RoundEnd, Side.Player, 1));
+    }
+
+    // 검은 화면 안내: 이기면 응급약 복용 횟수와 상관없이 승리 안내, 지면 응급약을 처음 먹기 전(0회)에만 응급약 안내
+    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+    [TestCase(true, 0, TutorialStep.RoundWin)]
+    [TestCase(true, 3, TutorialStep.RoundWin)]
+    [TestCase(false, 0, TutorialStep.RoundLose)]
+    [TestCase(false, 1, null)]
+    [TestCase(false, 2, null)]
+    public void GetRoundEndStep_ReturnsGuideForDarkScreen(bool playerWonRound, int medicineCount, TutorialStep? expected)
+    {
+        Assert.AreEqual(expected, TutorialGuideRules.GetRoundEndStep(playerWonRound, medicineCount));
     }
 
     // 딜러 차례의 뽑기와 플레이어 차례의 분배는 안내가 없다. 플레이어 차례의 안내는 뽑기 화면에서 이미 띄운다.
@@ -199,7 +198,7 @@ public class TutorialGuideRulesTests
     [TestCase(GamePhase.Judge, Side.Player)]
     public void GetStep_NoGuideScreen_ReturnsNull(GamePhase phase, Side turnPlayer)
     {
-        Assert.IsNull(TutorialGuideRules.GetStep(phase, turnPlayer, 1, true, 0));
+        Assert.IsNull(TutorialGuideRules.GetStep(phase, turnPlayer, 1));
     }
 
     // [다음 카드 셔플]로 넘어갈 때와 라운드 종료에 들어갈 때만 지운다 (튜토리얼(1라운드) 세부 기획서 2-2장 표시 방식).
@@ -281,7 +280,7 @@ public class TutorialGuideRulesTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(seed));
-            var guide = new TutorialGuide(flow, _tutorialSettings, 0);
+            var guide = new TutorialGuide(flow, _tutorialSettings);
             List<TutorialStep> shown = RecordShownSteps(guide, autoClick: true);
             bool isDraw = false;
             flow.Logged += message => isDraw |= message.Contains("선 정하기 무승부");
@@ -303,7 +302,7 @@ public class TutorialGuideRulesTests
     public void FirstRound_ShuffleGuides_WaitForClickWhileScreenStops()
     {
         var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(0));
-        var guide = new TutorialGuide(flow, _tutorialSettings, 0);
+        var guide = new TutorialGuide(flow, _tutorialSettings);
         flow.StartRound();
 
         Assert.IsTrue(flow.IsShowingCardPool);
@@ -519,7 +518,7 @@ public class TutorialGuideRulesTests
     }
 
     // 라운드가 끝나 안내를 지울 때는 아직 띄우지 않은 대기열의 안내도 함께 지운다.
-    // 이기면 승리 안내, 응급약을 먹기 전에 지면 응급약 안내만 남고, 둘 다 클릭을 기다리지 않는다
+    // 승패와 상관없이 말풍선이 비고 클릭을 기다리지 않는다 (승리·응급약 안내는 라운드 전환 화면이 보여 준다, RSP-91)
     [Test]
     public void RoundEnd_ClearsQueuedGuides()
     {
@@ -528,29 +527,8 @@ public class TutorialGuideRulesTests
             var (flow, guide, _) = StartRound(seed);
             PlayUntilRoundEnd(flow);
 
-            bool playerWon = flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
-            TutorialStep expected = playerWon ? TutorialStep.RoundWin : TutorialStep.RoundLose;
-            Assert.AreEqual(expected, guide.CurrentEntry.Step, $"seed {seed}");
+            Assert.IsNull(guide.CurrentEntry, $"seed {seed}");
             Assert.IsFalse(guide.IsWaitingForClick, $"seed {seed}");
         }
-    }
-
-    // 응급약을 먹은 적이 있으면 1라운드를 다시 해서 져도 응급약 안내를 띄우지 않고, 말풍선도 남기지 않는다
-    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
-    [Test]
-    public void RoundLost_AfterTakingMedicine_ShowsNoMedicineGuide()
-    {
-        for (int seed = 0; seed < SeedCount; seed++)
-        {
-            var (flow, guide, shown) = StartRound(seed, autoClick: true, medicineCount: 1);
-            PlayUntilRoundEnd(flow);
-            if (flow.Health.GetHealth(Side.Player) > GameRules.MinHealth) { continue; }
-
-            CollectionAssert.DoesNotContain(shown, TutorialStep.RoundLose, $"seed {seed}");
-            Assert.IsNull(guide.CurrentEntry, $"seed {seed}");
-            return;
-        }
-
-        Assert.Fail("플레이어가 라운드를 지는 시드가 필요하다");
     }
 }

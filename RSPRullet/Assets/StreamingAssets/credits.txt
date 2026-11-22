@@ -37,6 +37,15 @@ RSPRullet Credits
 OpenAI 이미지 생성 결과를 편집해 사용 (OpenAI 이용약관, 상업 이용 가능 - 사용자 확인 2026-11-16)
 
 ----------------------------------------
+[사운드] FilmCow SFX (https://filmcow.itch.io/filmcow-sfx)
+----------------------------------------
+라이선스: 로열티 프리, 개인·상업 프로젝트 사용 가능, 크레딧 표기 필수 아님 (배포 페이지 기준 확인 2026-11-22).
+사용 제한은 국가 정부·법 집행 프로젝트, 혐오 단체 사용이며 도박 관련 조항은 없음.
+
+- granola bar wrapper grabbed 1 : 응급약 복용 효과음 (약 포장을 집는 소리)
+- gulp 1                        : 응급약 복용 효과음 (삼키는 소리, 포장 소리 뒤에 이어 재생)
+
+----------------------------------------
 [폰트] SIL Open Font License 1.1
 ----------------------------------------
 - Hahmlet (Bold)        : Copyright 2020 The Hahmlet Project Authors (https://github.com/hyper-type/hahmlet)

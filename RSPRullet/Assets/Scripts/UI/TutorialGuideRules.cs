@@ -11,9 +11,8 @@ public static class TutorialGuideRules
     private const int TutorialEndShuffle = 2;
 
     // 진행 단계가 바뀌었을 때 그 화면에 맞는 안내 단계. 안내가 없는 화면이면 null이다.
-    // 이미 띄운 단계인지와 라운드 번호는 TutorialGuide가 따로 확인한다.
-    // medicineCount: 지금까지 응급약을 복용한 횟수. 응급약 안내는 처음 먹기 전(0회)에만 띄운다
-    public static TutorialStep? GetStep(GamePhase phase, Side turnPlayer, int shuffleCount, bool playerWonRound, int medicineCount)
+    // 이미 띄운 단계인지와 라운드 번호는 TutorialGuide가 따로 확인한다
+    public static TutorialStep? GetStep(GamePhase phase, Side turnPlayer, int shuffleCount)
     {
         switch (phase)
         {
@@ -34,14 +33,18 @@ public static class TutorialGuideRules
                 return TutorialStep.MatchResult;
             case GamePhase.Settlement:
                 return TutorialStep.Settlement;
-            // 라운드를 지면 응급약을 처음 먹기 전에만 응급약 안내를 띄운다. 지난 안내 단계는 다시 띄우지 않는다
-            // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
-            case GamePhase.RoundEnd:
-                if (playerWonRound) { return TutorialStep.RoundWin; }
-                return medicineCount == 0 ? TutorialStep.RoundLose : (TutorialStep?)null;
+            // 라운드 종료의 승리·응급약 안내는 말풍선에 띄우지 않는다. 화면이 어두워진 뒤 라운드 전환 화면(ScreenFadeUI)이 GetRoundEndStep으로 정해 보여 준다 (RSP-91)
             default:
                 return null;
         }
+    }
+
+    // 1라운드가 끝났을 때 검은 화면에 보여 줄 안내 단계. 이기면 승리 안내, 지면 응급약을 처음 먹기 전(0회)에만 응급약 안내다
+    // (튜토리얼(1라운드) 세부 기획서 5장 예외 TU3)
+    public static TutorialStep? GetRoundEndStep(bool playerWonRound, int medicineCount)
+    {
+        if (playerWonRound) { return TutorialStep.RoundWin; }
+        return medicineCount == 0 ? TutorialStep.RoundLose : (TutorialStep?)null;
     }
 
     // 말풍선에 남아 있던 안내를 지울지. 정산에서 [다음 카드 셔플]을 눌러 넘어갈 때와 라운드가 끝날 때 지운다.

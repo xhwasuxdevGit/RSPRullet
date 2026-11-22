@@ -9,6 +9,15 @@ public static class BannerRules
         return !(isRoundResult && isFinalRound);
     }
 
+    // 읽는 시간이 지나도 스스로 사라지지 않고 라운드 전환 화면(ScreenFadeUI)이 지울 때까지 남겨 둘 배너인지 (RSP-91).
+    // 마지막 라운드가 아닌 라운드 승패 배너만 남겨, 배너가 떠 있는 채로 화면이 어두워지게 한다.
+    // 마지막 라운드의 승패 배너는 띄우지 않으므로(IsShown) 남길 일도 없다
+    public static bool IsHeldForTransition(BannerType type, bool isFinalRound)
+    {
+        bool isRoundResult = type == BannerType.RoundWin || type == BannerType.RoundLose;
+        return isRoundResult && !isFinalRound;
+    }
+
     // 결과 배너인지. 결과 배너는 읽는 시간을 전환 배너보다 길게 둔다
     public static bool IsResult(BannerType type)
     {

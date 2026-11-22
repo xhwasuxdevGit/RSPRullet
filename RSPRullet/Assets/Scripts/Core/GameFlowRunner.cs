@@ -20,6 +20,9 @@ public class GameFlowRunner : MonoBehaviour
     // 진행 안내 배너가 떠 있는 동안에는 자동 진행 남은 시간을 줄이지 않고, 꺼진 뒤부터 센다 (RSP-86)
     [SerializeField] private BannerUI _banner;
 
+    // 응급약 복용은 효과음을 재생한 뒤, 다시하기는 화면을 어둡게 한 뒤 씬을 다시 불러온다 (RSP-91)
+    [SerializeField] private ScreenFadeUI _screenFade;
+
     // 카드풀을 공개하는 중인지와 남은 시간
     private bool _isShowingCardPool;
     private float _cardPoolTimeLeft;
@@ -65,7 +68,7 @@ public class GameFlowRunner : MonoBehaviour
     {
         RoundSettings round = _roundSettings[_progress.RoundNumber - 1];
         Flow = new GameFlow(_ruleSettings, round, _dealerSettings, _itemSettings, new System.Random());
-        Guide = new TutorialGuide(Flow, _tutorialSettings, _progress.MedicineCount);
+        Guide = new TutorialGuide(Flow, _tutorialSettings);
     }
 
     private void Start()
@@ -74,7 +77,8 @@ public class GameFlowRunner : MonoBehaviour
     }
 
     // [다음 라운드]: 라운드를 이겼고 마지막 라운드가 아니면 라운드 번호를 올리고 씬을 다시 불러온다
-    // (라운드와 게임 진행 세부 기획서 8-2장 R-F5 다음 라운드)
+    // (라운드와 게임 진행 세부 기획서 8-2장 R-F5 다음 라운드).
+    // [다음 라운드] 버튼은 라운드 전환 화면(ScreenFadeUI)이 화면을 어둡게 하고 안내를 닫은 뒤에 켜지므로 바로 불러온다 (RSP-91)
     public bool StartNextRound()
     {
         bool playerWonRound = Flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
@@ -93,7 +97,8 @@ public class GameFlowRunner : MonoBehaviour
     }
 
     // [응급약 복용]: 라운드를 졌고 마지막 라운드가 아니면 응급약 복용 횟수를 올리고 같은 라운드로 씬을 다시 불러온다.
-    // 체력·아이템·시계 이월·카드 셔플은 새로 만드는 GameFlow가 라운드 시작 상태로 돌린다
+    // 체력·아이템·시계 이월·카드 셔플은 새로 만드는 GameFlow가 라운드 시작 상태로 돌린다.
+    // [응급약 복용] 버튼은 라운드 전환 화면이 화면을 어둡게 한 뒤에 켜지므로, 약 먹는 효과음만 재생하고 불러온다 (RSP-91)
     // (라운드와 게임 진행 세부 기획서 8-2장 R-F4 응급약 복용, 4-1장 값별 처리)
     public bool TakeMedicine()
     {
@@ -108,7 +113,7 @@ public class GameFlowRunner : MonoBehaviour
             return false;
         }
 
-        SceneManager.LoadScene(gameObject.scene.buildIndex);
+        _screenFade.PlayMedicineThen(ReloadScene);
         return true;
     }
 
@@ -122,8 +127,13 @@ public class GameFlowRunner : MonoBehaviour
         }
 
         _progress.StartNewGame();
-        SceneManager.LoadScene(gameObject.scene.buildIndex);
+        _screenFade.FadeOutThen(ReloadScene);
         return true;
+    }
+
+    private void ReloadScene()
+    {
+        SceneManager.LoadScene(gameObject.scene.buildIndex);
     }
 
     private void Update()

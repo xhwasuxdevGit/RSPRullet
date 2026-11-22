@@ -11,7 +11,7 @@ public enum TutorialStep
     DealerDistribute,  // 안내-04: 딜러 차례 판의 뽑기·분배
     MatchResult,       // 안내-05: 판 결과 표시
     Settlement,        // 안내-06·07: 정산 표시 (말풍선 하나)
-    RoundWin,          // 안내-08: 1라운드 승리
+    RoundWin,          // 안내-08: 1라운드 승리 (말풍선이 아니라 라운드 전환 화면 ScreenFadeUI가 문구만 읽어 보여 준다, RSP-91)
     TutorialEnd,       // 튜토리얼 종료: 두 번째 카드 셔플의 카드풀 공개
-    RoundLose          // 안내-09: 1라운드 패배, 응급약 섭취 안내 (응급약을 처음 먹을 때만)
+    RoundLose          // 안내-09: 1라운드 패배, 응급약 섭취 안내 (응급약을 처음 먹을 때만. 라운드 전환 화면 ScreenFadeUI가 문구만 읽어 보여 준다, RSP-91)
 }

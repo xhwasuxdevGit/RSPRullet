@@ -6,12 +6,14 @@ using UnityEngine.UI;
 // 버튼을 고르는 턴 플레이어·체력은 단계가 바뀔 때 함께 정해지므로(라운드 종료의 체력은 판정·정산에서 먼저 바뀜) 단계 알림으로 충분하다.
 // 아이템을 쓰거나 돋보기 선택을 마쳐도 단계는 그대로라서, 돋보기 선택 버튼과 [아이템 사용 완료]·[아이템 없음] 전환은 아이템 사용 알림으로 다시 정한다.
 // 카드 연출 중에는 모든 단계별 버튼을 끄고 입력을 잠그며, 연출이 끝나면 다시 정한다 (연출·아트·사운드 세부 기획서 3장 카드 연출).
-// 진행 안내 배너가 떠 있는 동안에도 같은 방식으로 잠그고, 배너가 꺼지면 다시 정한다 (RSP-86)
+// 진행 안내 배너가 떠 있는 동안에도 같은 방식으로 잠그고, 배너가 꺼지면 다시 정한다 (RSP-86).
+// 라운드 전환 화면이 어두워지는 중이거나 안내 클릭을 기다리는 동안에도 같은 방식으로 잠근다 (RSP-91)
 public class PhaseButtonsUI : MonoBehaviour
 {
     [SerializeField] private GameFlowRunner _runner;
     [SerializeField] private TableCardsUI _tableCards;
     [SerializeField] private BannerUI _banner;
+    [SerializeField] private ScreenFadeUI _screenFade;
 
     [Header("단계별 버튼")]
     [SerializeField] private Button _drawCardButton;
@@ -39,6 +41,7 @@ public class PhaseButtonsUI : MonoBehaviour
         _flow.ItemUsed += RefreshButtons;
         _tableCards.AnimationStateChanged += RefreshButtons;
         _banner.ShowingChanged += RefreshButtons;
+        _screenFade.BusyChanged += RefreshButtons;
         _phaseButtons = new[]
         {
             (_drawCardButton, PhaseButton.DrawCard),
@@ -71,6 +74,7 @@ public class PhaseButtonsUI : MonoBehaviour
         _flow.ItemUsed -= RefreshButtons;
         _tableCards.AnimationStateChanged -= RefreshButtons;
         _banner.ShowingChanged -= RefreshButtons;
+        _screenFade.BusyChanged -= RefreshButtons;
         _drawCardButton.onClick.RemoveListener(OnDrawCard);
         _keepButton.onClick.RemoveListener(OnKeep);
         _giveButton.onClick.RemoveListener(OnGive);
@@ -90,7 +94,8 @@ public class PhaseButtonsUI : MonoBehaviour
 
     private void RefreshButtons()
     {
-        PhaseButton buttons = _tableCards.IsAnimating || _banner.IsShowing ? PhaseButton.None : GetCurrentButtons();
+        bool isWaiting = _tableCards.IsAnimating || _banner.IsShowing || _screenFade.IsBusy;
+        PhaseButton buttons = isWaiting ? PhaseButton.None : GetCurrentButtons();
         foreach ((Button button, PhaseButton flag) in _phaseButtons)
         {
             button.gameObject.SetActive((buttons & flag) != 0);
