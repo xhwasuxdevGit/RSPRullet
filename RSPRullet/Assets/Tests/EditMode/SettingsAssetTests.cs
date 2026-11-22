@@ -60,6 +60,22 @@ public class SettingsAssetTests
         Assert.AreEqual(2.0f, settings.DealerThinkingMaxSeconds, 0.0001f);
     }
 
+    // 연출·아트·사운드 세부 기획서 7-1장 카드 연출 시간 시작값 (들어 올리기 기울기는 아래 주석 참고)
+    [Test]
+    public void DisplayTimeSettings_CardAnimationMatchPlannedValues()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<DisplayTimeSettings>($"{Folder}/DisplayTimeSettings.asset");
+
+        Assert.IsNotNull(settings);
+        Assert.AreEqual(0.5f, settings.CardMoveSeconds, 0.0001f);
+        Assert.AreEqual(0.2f, settings.CardMoveDelaySeconds, 0.0001f);
+        Assert.AreEqual(0.45f, settings.CardFlipSeconds, 0.0001f);
+        Assert.AreEqual(0.6f, settings.CardSwapSeconds, 0.0001f);
+        Assert.AreEqual(0.6f, settings.CardLiftSeconds, 0.0001f);
+        // 들어 올리기 기울기는 기획서 시작값 60°에서 Play 검증(RSP-63)으로 낮춘 값이다
+        Assert.AreEqual(30f, settings.CardLiftTiltDegrees, 0.0001f);
+    }
+
     // 딜러 AI 세부 기획서 7-1-1장 기본값. 시계 사용 확률은 규칙 설정 에셋에서 옮겨 온 값(0.85)을 유지한다
     [Test]
     public void DealerSettings_MatchPlannedValues()

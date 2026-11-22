@@ -82,6 +82,7 @@ disable-model-invocation: false
 
 ### Phase 10. 기술문서 업데이트 여부 확인
 - `write-tech-doc` 스킬 1장을 따른다. 불필요하면 사유를 보고하고, 기록이 필요하면 Jira 코멘트 초안을 제시한다.
+- 기술문서 작업은 별도 세션에서 수행한다(`behavior-guidelines.md` 9장). 이 세션에서는 작성 여부만 확인하고 새 세션을 연다.
 - 대상: Confluence 기술문서, 시스템 설계 문서, 데이터 인터페이스 문서, 기존 구현 설명, 다이어그램
 
 ### Phase 11. Jira 완료 처리

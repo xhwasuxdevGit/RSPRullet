@@ -16,3 +16,9 @@ MonoBehaviour:
   _settlementSeconds: 2
   _dealerThinkingMinSeconds: 1.5
   _dealerThinkingMaxSeconds: 2
+  _cardMoveSeconds: 0.5
+  _cardMoveDelaySeconds: 0.2
+  _cardFlipSeconds: 0.45
+  _cardSwapSeconds: 0.6
+  _cardLiftSeconds: 0.6
+  _cardLiftTiltDegrees: 30

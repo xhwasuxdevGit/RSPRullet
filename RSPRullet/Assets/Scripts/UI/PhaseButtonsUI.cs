@@ -4,10 +4,12 @@ using UnityEngine.UI;
 // 하단 HUD의 단계별 버튼과 입력 잠금 (UI·UX 화면 흐름 세부 기획서 6-1장 단계별 버튼, 6-2장 입력 잠금).
 // 진행 흐름(GameFlow)의 단계 변경 알림과 아이템 사용 알림을 받을 때만 켤 버튼을 다시 정한다.
 // 버튼을 고르는 턴 플레이어·체력은 단계가 바뀔 때 함께 정해지므로(라운드 종료의 체력은 판정·정산에서 먼저 바뀜) 단계 알림으로 충분하다.
-// 아이템을 쓰거나 돋보기 선택을 마쳐도 단계는 그대로라서, 돋보기 선택 버튼과 [아이템 사용 완료]·[아이템 없음] 전환은 아이템 사용 알림으로 다시 정한다
+// 아이템을 쓰거나 돋보기 선택을 마쳐도 단계는 그대로라서, 돋보기 선택 버튼과 [아이템 사용 완료]·[아이템 없음] 전환은 아이템 사용 알림으로 다시 정한다.
+// 카드 연출 중에는 모든 단계별 버튼을 끄고 입력을 잠그며, 연출이 끝나면 다시 정한다 (연출·아트·사운드 세부 기획서 3장 카드 연출)
 public class PhaseButtonsUI : MonoBehaviour
 {
     [SerializeField] private GameFlowRunner _runner;
+    [SerializeField] private TableCardsUI _tableCards;
 
     [Header("단계별 버튼")]
     [SerializeField] private Button _drawCardButton;
@@ -33,6 +35,7 @@ public class PhaseButtonsUI : MonoBehaviour
         _flow = _runner.Flow;
         _flow.PhaseChanged += OnPhaseChanged;
         _flow.ItemUsed += RefreshButtons;
+        _tableCards.AnimationStateChanged += RefreshButtons;
         _phaseButtons = new[]
         {
             (_drawCardButton, PhaseButton.DrawCard),
@@ -63,6 +66,7 @@ public class PhaseButtonsUI : MonoBehaviour
     {
         _flow.PhaseChanged -= OnPhaseChanged;
         _flow.ItemUsed -= RefreshButtons;
+        _tableCards.AnimationStateChanged -= RefreshButtons;
         _drawCardButton.onClick.RemoveListener(OnDrawCard);
         _keepButton.onClick.RemoveListener(OnKeep);
         _giveButton.onClick.RemoveListener(OnGive);
@@ -82,7 +86,7 @@ public class PhaseButtonsUI : MonoBehaviour
 
     private void RefreshButtons()
     {
-        PhaseButton buttons = GetCurrentButtons();
+        PhaseButton buttons = _tableCards.IsAnimating ? PhaseButton.None : GetCurrentButtons();
         foreach ((Button button, PhaseButton flag) in _phaseButtons)
         {
             button.gameObject.SetActive((buttons & flag) != 0);

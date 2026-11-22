@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6559963106053885240}
   - component: {fileID: 893830399186774357}
+  - component: {fileID: 8526886717577545869}
   m_Layer: 0
   m_Name: PFB_TableCard
   m_TagString: Untagged
@@ -47,6 +48,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: RSPRullet::CardView
   _cardRenderer: {fileID: 3335484009371387792}
   _knownMarker: {fileID: 8471769135438449029}
+--- !u!114 &8526886717577545869
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1159963360240624846}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d397712b4d2e06e4da00fba51c0e0847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: RSPRullet::CardMotion
+  _face: {fileID: 5690214826943811382}
+  _highlightHeight: 0.04
+  _highlightScale: 1.1
+  _curveWidth: 0.15
 --- !u!1 &4520298810233090675
 GameObject:
   m_ObjectHideFlags: 0

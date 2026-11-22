@@ -9,6 +9,10 @@ public class TutorialGuideRulesTests
 {
     private const int SeedCount = 50;
 
+    // 진행 반복문 한 번에 허용하는 최대 횟수. 진행 흐름의 입력 규칙이 바뀌어 진행이 멈추면
+    // 에디터가 테스트를 끝내지 못하고 멈추는 대신 이 횟수에서 실패로 끝낸다. 한 라운드는 이보다 훨씬 적게 반복한다
+    private const int MaxFlowSteps = 1000;
+
     private RuleSettings _rules;
     private RoundSettings _round;
     private DealerSettings _dealerSettings;
@@ -98,24 +102,30 @@ public class TutorialGuideRulesTests
         while (guide.IsWaitingForClick) { guide.Confirm(); }
     }
 
-    // 판 결과 확인 지점까지 진행한다. 1라운드는 아이템이 없어 아이템 단계에서 멈추지 않는다
+    // 판 결과 확인 지점까지 진행한다. 1라운드는 아이템이 없어 아이템 단계에서 멈추지 않는다.
+    // 분배 뒤 카드 공개 단계에서 멈추므로, 화면의 카드 공개 연출이 끝난 것으로 보고 판정까지 진행한다
     private static void PlayTurn(GameFlow flow)
     {
         if (flow.IsWaitingForDealer)
         {
             flow.PlayDealerTurn();
-            return;
+        }
+        else
+        {
+            flow.DrawCard();
+            flow.Distribute(keep: true);
         }
 
-        flow.DrawCard();
-        flow.Distribute(keep: true);
+        if (flow.CurrentPhase == GamePhase.Reveal) { flow.Next(); }
     }
 
     // 라운드가 끝날 때까지 진행한다. 판 결과와 정산은 확인 입력(Next)으로 넘긴다
     private static void PlayUntilRoundEnd(GameFlow flow)
     {
+        int steps = 0;
         while (flow.CurrentPhase != GamePhase.RoundEnd)
         {
+            Assert.Less(steps++, MaxFlowSteps, $"진행이 멈춤: {flow.CurrentPhase}");
             if (flow.CurrentPhase == GamePhase.ShowResult || flow.CurrentPhase == GamePhase.Settlement ||
                 flow.CurrentPhase == GamePhase.SettlementWait)
             {
@@ -375,8 +385,10 @@ public class TutorialGuideRulesTests
         for (int seed = 0; seed < SeedCount; seed++)
         {
             var (flow, guide, _) = StartRound(seed);
+            int steps = 0;
             while (flow.CurrentPhase != GamePhase.Settlement && flow.CurrentPhase != GamePhase.RoundEnd)
             {
+                Assert.Less(steps++, MaxFlowSteps, $"seed {seed} 진행이 멈춤: {flow.CurrentPhase}");
                 ClickAll(guide);
                 if (flow.CurrentPhase == GamePhase.ShowResult) { flow.Next(); }
                 else { PlayTurn(flow); }
@@ -396,8 +408,10 @@ public class TutorialGuideRulesTests
             Assert.AreEqual(TutorialStep.TutorialEnd, guide.CurrentEntry.Step, $"seed {seed}");
 
             // 첫 판 동안은 종료 안내가 남아 있다
+            steps = 0;
             while (flow.CurrentPhase != GamePhase.ShowResult)
             {
+                Assert.Less(steps++, MaxFlowSteps, $"seed {seed} 진행이 멈춤: {flow.CurrentPhase}");
                 Assert.AreEqual(TutorialStep.TutorialEnd, guide.CurrentEntry.Step, $"seed {seed}");
                 PlayTurn(flow);
             }
