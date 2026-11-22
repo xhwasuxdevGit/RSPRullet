@@ -318,6 +318,62 @@ public class TutorialGuideRulesTests
         Assert.IsTrue(guide.IsWaitingForClick);
     }
 
+    // 1라운드 시작 전 딜러 대사는 목록 순서대로 하나씩 뜨고, 클릭할 때마다 다음 대사로 넘어가며, 마지막 대사를 클릭하면 끝난다 (RSP-80).
+    // 설정 도우미가 넣은 대사 항목("Prologue") 뒤에 항목을 더 넣어 여러 개를 확인한다
+    [Test]
+    public void Prologue_ShowsEntriesInOrder_UntilLastClick()
+    {
+        AddPrologueEntries("대사 1", "대사 2", "대사 3");
+        var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(0));
+        var guide = new TutorialGuide(flow, _tutorialSettings);
+        guide.ShowPrologue();
+
+        var shownTexts = new List<string>();
+        while (guide.IsWaitingForClick && shownTexts.Count < MaxFlowSteps)
+        {
+            shownTexts.Add(guide.CurrentEntry.Text);
+            guide.Confirm();
+        }
+
+        CollectionAssert.AreEqual(new[] { "Prologue", "대사 1", "대사 2", "대사 3" }, shownTexts);
+        Assert.IsNull(guide.CurrentEntry);
+        Assert.IsFalse(guide.IsWaitingForClick);
+    }
+
+    // 대사를 띄운 뒤 라운드를 시작하면 카드풀 안내는 대사 뒤에 이어지고, 대사를 다 넘기기 전에는 카드풀 공개가 넘어갈 수 없다 (RSP-80)
+    [Test]
+    public void Prologue_BeforeStartRound_CardPoolGuideFollows()
+    {
+        var flow = new GameFlow(_rules, _round, _dealerSettings, _itemSettings, new System.Random(0));
+        var guide = new TutorialGuide(flow, _tutorialSettings);
+        guide.ShowPrologue();
+        flow.StartRound();
+
+        Assert.IsTrue(flow.IsShowingCardPool);
+        Assert.AreEqual(TutorialStep.Prologue, guide.CurrentEntry.Step);
+        Assert.IsFalse(TutorialGuideRules.CanAdvance(isTimeOver: true, guide.IsWaitingForClick));
+
+        guide.Confirm();
+        Assert.AreEqual(TutorialStep.CardPool, guide.CurrentEntry.Step);
+        Assert.IsTrue(guide.IsWaitingForClick);
+    }
+
+    private void AddPrologueEntries(params string[] texts)
+    {
+        var serialized = new SerializedObject(_tutorialSettings);
+        SerializedProperty entries = serialized.FindProperty("_entries");
+        foreach (string text in texts)
+        {
+            entries.arraySize++;
+            SerializedProperty entry = entries.GetArrayElementAtIndex(entries.arraySize - 1);
+            entry.FindPropertyRelative("_step").enumValueIndex = (int)TutorialStep.Prologue;
+            entry.FindPropertyRelative("_text").stringValue = text;
+            entry.FindPropertyRelative("_waitsForClick").boolValue = true;
+        }
+
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
     // 1라운드가 아니면 안내를 띄우지 않고 클릭도 기다리지 않는다 (튜토리얼(1라운드) 세부 기획서 2-1장 범위)
     [TestCase(2)]
     [TestCase(3)]

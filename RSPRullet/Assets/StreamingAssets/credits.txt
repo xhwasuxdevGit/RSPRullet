@@ -46,6 +46,27 @@ OpenAI 이미지 생성 결과를 편집해 사용 (OpenAI 이용약관, 상업 
 - gulp 1                        : 응급약 복용 효과음 (삼키는 소리, 포장 소리 뒤에 이어 재생)
 
 ----------------------------------------
+[배경음악] Kevin MacLeod (incompetech.com) - CC BY 4.0
+----------------------------------------
+라이선스: Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/)
+크레딧 표기 필수 (incompetech FAQ 확인 2026-11-23). 앞 8초만 잘라 끝을 페이드아웃하고 음량을 맞춰 사용.
+
+- Sidewalk Shade (slower) : 인트로 배경음악
+  "Sidewalk Shade" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0
+  https://creativecommons.org/licenses/by/4.0/
+- Hep Cats                : 엔딩 배경음악
+  "Hep Cats" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0
+  https://creativecommons.org/licenses/by/4.0/
+
+----------------------------------------
+[그래픽] 타이틀·인트로·엔딩 배경 이미지
+----------------------------------------
+Google Gemini 이미지 생성 결과를 사용 (워터마크 제거 후 PNG로 변환)
+- Title, Intro_01·02, Ending_01·02
+
+----------------------------------------
 [폰트] SIL Open Font License 1.1
 ----------------------------------------
 - Hahmlet (Bold)        : Copyright 2020 The Hahmlet Project Authors (https://github.com/hyper-type/hahmlet)

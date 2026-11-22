@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 // 게임 클리어·게임 오버 팝업 (UI·UX 화면 흐름 세부 기획서 6-5장 게임 클리어·게임 오버 팝업, 라운드와 게임 진행 세부 기획서 6장 라운드 종료 표시 내용).
 // 마지막 라운드가 끝나면 이겼는지 졌는지에 맞춰 한 팝업의 제목과 왼쪽 버튼만 바꿔 연다.
-// 팝업이 떠 있는 동안 하단 버튼과 규칙·설정 버튼 잠금은 PhaseButtonsUI가 맡고, 이 클래스는 팝업 표시와 [다시하기]만 맡는다
+// 팝업이 떠 있는 동안 하단 버튼과 규칙·설정 버튼 잠금은 PhaseButtonsUI가 맡고, 이 클래스는 팝업 표시와 버튼 연결만 맡는다
 public class GameEndPopupUI : MonoBehaviour
 {
     private const string ClearTitle = "게임 클리어";
@@ -17,9 +17,9 @@ public class GameEndPopupUI : MonoBehaviour
 
     [Header("버튼")]
     [SerializeField] private Button _restartButton;
-    // 게임 클리어 때만 보인다. 엔딩 화면이 생길 때까지 비활성이다
+    // 게임 클리어 때만 보인다. 엔딩 씬으로 간다
     [SerializeField] private Button _endingButton;
-    // 게임 오버 때만 보인다. 메인 메뉴(RSP-80)가 생길 때까지 비활성이다
+    // 게임 오버 때만 보인다. 타이틀 씬으로 간다
     [SerializeField] private Button _mainMenuButton;
 
     private GameFlow _flow;
@@ -29,9 +29,9 @@ public class GameEndPopupUI : MonoBehaviour
         _flow = _runner.Flow;
         _flow.PhaseChanged += OnPhaseChanged;
         _restartButton.onClick.AddListener(OnRestart);
+        _endingButton.onClick.AddListener(OnEnding);
+        _mainMenuButton.onClick.AddListener(OnMainMenu);
 
-        ButtonLock.SetLocked(_endingButton, true);
-        ButtonLock.SetLocked(_mainMenuButton, true);
         _popup.SetActive(false);
     }
 
@@ -39,6 +39,8 @@ public class GameEndPopupUI : MonoBehaviour
     {
         _flow.PhaseChanged -= OnPhaseChanged;
         _restartButton.onClick.RemoveListener(OnRestart);
+        _endingButton.onClick.RemoveListener(OnEnding);
+        _mainMenuButton.onClick.RemoveListener(OnMainMenu);
     }
 
     private void OnPhaseChanged(GamePhase previous, GamePhase next)
@@ -59,5 +61,15 @@ public class GameEndPopupUI : MonoBehaviour
     private void OnRestart()
     {
         _runner.RestartGame();
+    }
+
+    private void OnEnding()
+    {
+        _runner.GoToEnding();
+    }
+
+    private void OnMainMenu()
+    {
+        _runner.GoToTitle();
     }
 }

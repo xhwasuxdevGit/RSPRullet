@@ -62,6 +62,19 @@ public class TutorialGuide
         if (isChanged) { Changed?.Invoke(); }
     }
 
+    // 1라운드를 시작하기 전 딜러 대사를 차례로 띄운다 (RSP-80). 첫 대사를 띄우고 나머지는 대기열에 넣어 클릭할 때마다 하나씩 띄운다.
+    // 게임 씬에 처음 들어왔을 때 GameFlowRunner가 라운드 시작 전에 불러, 카드풀 안내가 대사 뒤 대기열에 이어지게 한다.
+    // 대사 항목은 모두 클릭 대기를 켜 둔다. 끄면 다음 안내가 대기열에 쌓이지 않고 바로 대사를 덮는다
+    public void ShowPrologue()
+    {
+        List<TutorialGuideEntry> entries = _settings.GetEntries(TutorialStep.Prologue);
+        if (entries.Count == 0) { return; }
+
+        for (int i = 1; i < entries.Count; i++) { _pendingEntries.Enqueue(entries[i]); }
+        Show(entries[0]);
+        Changed?.Invoke();
+    }
+
     // 플레이어가 안내를 읽고 클릭했다. 말풍선과 클릭 아이콘을 함께 지우고, 대기열에 안내가 있으면 다음 안내를 띄운다.
     // 클릭을 기다리는 중이 아니면 무시한다
     public void Confirm()

@@ -13,5 +13,6 @@ public enum TutorialStep
     Settlement,        // 안내-06·07: 정산 표시 (말풍선 하나)
     RoundWin,          // 안내-08: 1라운드 승리 (말풍선이 아니라 라운드 전환 화면 ScreenFadeUI가 문구만 읽어 보여 준다, RSP-91)
     TutorialEnd,       // 튜토리얼 종료: 두 번째 카드 셔플의 카드풀 공개
-    RoundLose          // 안내-09: 1라운드 패배, 응급약 섭취 안내 (응급약을 처음 먹을 때만. 라운드 전환 화면 ScreenFadeUI가 문구만 읽어 보여 준다, RSP-91)
+    RoundLose,         // 안내-09: 1라운드 패배, 응급약 섭취 안내 (응급약을 처음 먹을 때만. 라운드 전환 화면 ScreenFadeUI가 문구만 읽어 보여 준다, RSP-91)
+    Prologue           // 1라운드 시작 전 딜러 대사 (RSP-80). 게임 씬에 처음 들어왔을 때만 띄운다. 이 단계만 항목 여러 개를 목록 순서대로 띄운다
 }
