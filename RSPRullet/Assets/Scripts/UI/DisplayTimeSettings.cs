@@ -11,6 +11,12 @@ public class DisplayTimeSettings : ScriptableObject
     // 정산-01 정산 표시 시간(초). 시간이 지나면 한쪽만 체력 0이면 라운드 종료로, 그 외에는 [다음 카드 셔플] 대기로 넘어간다
     [SerializeField, Range(1.5f, 2.5f)] private float _settlementSeconds = 2.0f;
 
+    // 카드 셔플의 카드풀 공개 표시 시간(초). 이번 카드풀 7장을 앞면으로 보여 주고, 시간이 지나면 시작 카드를 나눠 주며 카드 섞기 연출로 넘어간다
+    [SerializeField, Range(1.0f, 2.0f)] private float _cardPoolSeconds = 1.5f;
+
+    // 선 정하기 결과 표시 시간(초). 시간이 지나면 첫 번째 판으로 가고, 비겼으면 카드풀 공개부터 다시 한다
+    [SerializeField, Range(0.6f, 1.5f)] private float _decideFirstSeconds = 1.0f;
+
     // 판-03 딜러 고민 중 대기 시간(초). 판마다 최소~최대 사이에서 무작위로 정한다 (연출·아트·사운드 세부 기획서 7-3장).
     // 판-06 딜러 아이템 대기도 같은 범위를 쓴다. 기획서의 0.8~1.5초에서 플레이 테스트(RSP-97)로 1.5~2.0초로 늘렸다
     [SerializeField, Min(0f)] private float _dealerThinkingMinSeconds = 1.5f;
@@ -31,6 +37,9 @@ public class DisplayTimeSettings : ScriptableObject
     // 돋보기 교환에서 두 카드가 곡선으로 엇갈려 자리를 바꾸는 시간(초)
     [SerializeField, Range(0.5f, 0.8f)] private float _cardSwapSeconds = 0.6f;
 
+    // 카드 셔플에서 모은 더미를 섞는 짧은 동작 시간(초)
+    [SerializeField, Range(0.5f, 1.0f)] private float _deckShuffleSeconds = 0.7f;
+
     // 뽑은 카드를 더미 위로 들어 올리는 시간(초)
     [SerializeField, Range(0.45f, 0.8f)] private float _cardLiftSeconds = 0.6f;
 
@@ -40,12 +49,15 @@ public class DisplayTimeSettings : ScriptableObject
 
     public float MatchResultSeconds => _matchResultSeconds;
     public float SettlementSeconds => _settlementSeconds;
+    public float CardPoolSeconds => _cardPoolSeconds;
+    public float DecideFirstSeconds => _decideFirstSeconds;
     public float DealerThinkingMinSeconds => _dealerThinkingMinSeconds;
     public float DealerThinkingMaxSeconds => _dealerThinkingMaxSeconds;
     public float CardMoveSeconds => _cardMoveSeconds;
     public float CardMoveDelaySeconds => _cardMoveDelaySeconds;
     public float CardFlipSeconds => _cardFlipSeconds;
     public float CardSwapSeconds => _cardSwapSeconds;
+    public float DeckShuffleSeconds => _deckShuffleSeconds;
     public float CardLiftSeconds => _cardLiftSeconds;
     public float CardLiftTiltDegrees => _cardLiftTiltDegrees;
 }

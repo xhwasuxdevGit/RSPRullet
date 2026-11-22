@@ -14,11 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: RSPRullet::DisplayTimeSettings
   _matchResultSeconds: 1.6
   _settlementSeconds: 2
+  _cardPoolSeconds: 1.5
+  _decideFirstSeconds: 1
   _dealerThinkingMinSeconds: 1.5
   _dealerThinkingMaxSeconds: 2
   _cardMoveSeconds: 0.5
   _cardMoveDelaySeconds: 0.2
   _cardFlipSeconds: 0.45
   _cardSwapSeconds: 0.6
+  _deckShuffleSeconds: 0.7
   _cardLiftSeconds: 0.6
   _cardLiftTiltDegrees: 30
