@@ -52,7 +52,7 @@ public class GameEndPopupUI : MonoBehaviour
 
         bool playerWonRound = _flow.Health.GetHealth(Side.Player) > GameRules.MinHealth;
         _titleText.text = playerWonRound ? ClearTitle : GameOverTitle;
-        _medicineText.text = $"응급약 복용 {_runner.MedicineCount}회";
+        _medicineText.text = $"응급약 섭취 {_runner.MedicineCount}회";
         _endingButton.gameObject.SetActive(playerWonRound);
         _mainMenuButton.gameObject.SetActive(!playerWonRound);
         _popup.SetActive(true);
