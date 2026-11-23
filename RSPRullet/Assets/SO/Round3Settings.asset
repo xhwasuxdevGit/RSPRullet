@@ -17,3 +17,4 @@ MonoBehaviour:
   _itemCapacity: 6
   _itemsPerShuffle: 2
   _startMagnifierCount: 1
+  _showsCombinationHint: 0
