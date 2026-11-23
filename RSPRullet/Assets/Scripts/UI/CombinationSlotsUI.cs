@@ -88,8 +88,9 @@ public class CombinationSlotsUI : MonoBehaviour
             possible = CombinationSlotRules.GetPossibleCombination(slots[0].Shape, slots[1].Shape, firstShapePoolCount);
         }
 
-        // 두 칸이 찼어도 이룰 수 있는 패턴이 없으면(카드풀에 2장뿐인 손 모양 두 장) 안내하지 않는다
-        bool showsHint = possible != CombinationType.None;
+        // 두 칸이 찼어도 이룰 수 있는 패턴이 없으면(카드풀에 2장뿐인 손 모양 두 장) 안내하지 않는다.
+        // 라운드 설정에서 안내를 끈 라운드도 안내하지 않는다 (RSP-107)
+        bool showsHint = _flow.ShowsCombinationHint && possible != CombinationType.None;
         _hintText.gameObject.SetActive(showsHint);
         if (showsHint)
         {

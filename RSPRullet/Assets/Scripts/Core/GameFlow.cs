@@ -52,6 +52,9 @@ public class GameFlow
     public int RoundNumber { get; }
     public int ShuffleCount { get; private set; }
 
+    // 조합 칸의 패턴 이름 안내를 보여 줄지. 라운드 설정 값을 받아 둔다
+    public bool ShowsCombinationHint { get; }
+
     // 화면은 상태를 읽기 전용 인터페이스로만 읽는다. 상태를 바꾸는 것은 이 클래스의 입력과 진행뿐이다.
     // 테이블은 카드 셔플마다 새로 만들므로, 화면은 Table을 저장해 두지 않고 쓸 때마다 읽는다
     public ITableView Table => _table;
@@ -83,6 +86,7 @@ public class GameFlow
     {
         _random = random;
         RoundNumber = round.RoundNumber;
+        ShowsCombinationHint = round.ShowsCombinationHint;
         _health = new HealthState(rules, round.StartHealth);
         _dealer = new DealerAI(rules, dealerSettings, random);
         _items = new ItemState(round.ItemCapacity);

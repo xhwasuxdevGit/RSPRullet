@@ -39,6 +39,18 @@ public class TopInfoRulesTests
         Assert.AreEqual("1라운드    |    <color=#D9A626>카드 섞기 2번째</color>    |    정산", text);
     }
 
+    // 카드 섞기 구간에는 지난 판 대신 "카드 섞는 중"을 보여 주고, 턴 플레이어는 보여 주지 않는다 (RSP-107)
+    [TestCase(GamePhase.RoundStart)]
+    [TestCase(GamePhase.CardShuffle)]
+    [TestCase(GamePhase.StartCardDeal)]
+    [TestCase(GamePhase.DecideFirst)]
+    public void Shuffle_ShowsShuffling_WithoutTurnPlayer(GamePhase phase)
+    {
+        string text = GetText(1, 2, phase, 1, Side.Dealer);
+
+        Assert.AreEqual("1라운드    |    <color=#D9A626>카드 섞기 2번째</color>    |    카드 섞는 중", text);
+    }
+
     // 시계를 쓴 쪽을 강조색 태그로 감싸 상단 정보 뒤에 붙인다 (UI·UX 화면 흐름 세부 기획서 5-2장 시계 사용 표시)
     [TestCase(Side.Player, "플레이어가 시계를 사용함")]
     [TestCase(Side.Dealer, "딜러가 시계를 사용함")]

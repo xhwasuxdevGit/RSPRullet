@@ -15037,11 +15037,12 @@ MonoBehaviour:
   _guideClickCatcher: {fileID: 584400154}
   _guideClickIcon: {fileID: 1663316211}
   _round2ClearText: "\uC544\uC8FC \uC88B\uC544! \uC5ED\uC2DC \uB0B4 \uB208\uC774
-    \uD2C0\uB9AC\uC9C0 \uC54A\uC558\uAD70 \uADF8\uB798.\n\uC2B9\uBD80\uB294 \uC810\uC810
+    \uD2C0\uB9AC\uC9C0 \uC54A\uC558\uAD70 \uADF8\uB798.\uC2B9\uBD80\uB294 \uC810\uC810
     \uB354 \uC7AC\uBBF8\uC788\uC5B4\uC9C0\uAC8C \uB420 \uAC70\uC57C...\n\uC774\uC81C\uBD80\uD130\uB294
     \uC11C\uB85C\uC758 <color=#8E2442><b>\uCCB4\uB825</b></color>\uB3C4, <color=#8E2442><b>\uC544\uC774\uD15C</b></color>\uB3C4
-    \uB354\uC6B1 \uB298\uC5B4\uB0A0 \uAC78\uC138.\n\uBD80\uB514 \uB0A0 \uC2E4\uB9DD\uC2DC\uD0A4\uC9C0
-    \uB9D0\uAC8C. \uD750\uD750\uD750..."
+    \uB354\uC6B1 \uB298\uC5B4\uB0A0 \uAC78\uC138. \n\uCE74\uB4DC \uD328 <color=#8E2442><b>\uC870\uD569</b></color>\uB3C4
+    \uC9C1\uC811 \uACC4\uC0B0\uD574\uC57C \uB420\uD14C\uACE0.\n\uBD80\uB514 \uB0A0
+    \uC2E4\uB9DD\uC2DC\uD0A4\uC9C0 \uB9D0\uAC8C. \uD750\uD750\uD750..."
   _audioSource: {fileID: 1396348564}
   _medicineClips:
   - {fileID: 8300000, guid: 0202eae3c287c974099c089fbac48b3c, type: 3}
