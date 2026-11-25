@@ -1,0 +1,38 @@
+{
+  "_source": "RSPRullet 게임 컨셉 기획서 (포트폴리오) https://docs.google.com/document/d/1lC3-zZ-fL7MkuTD7gSIgSz4jUrFBvNuAVOnQZEteSI4 (2026-11-25 기준). 단락 앞뒤 간격 = 그 단락 글자 크기(제목·본문·목록 공통), 목차 0pt, 긴 항목 하위 분리, 마침표 단락 분리는 사용자 지정 기본값",
+  "spacing_rule": "font_size",
+  "doc": {"mode": "PAGELESS", "font": "Noto Sans KR", "text_color": "334155", "spacing_mode": "NEVER_COLLAPSE"},
+  "title": {"size": 22, "line": 100, "before": 22, "after": 22, "color": "0F172A", "bold": true},
+  "h1": {"size": 18, "line": 115, "before": 18, "after": 18, "color": "1E293B", "bold": true},
+  "h2": {"size": 14, "line": 115, "before": 14, "after": 14, "color": "334155", "bold": true},
+  "body": {"size": 11, "line": 125, "before": 11, "after": 11},
+  "label": {"size": 12, "bold": true, "before": 12, "after": 12},
+  "toc": {"heading": "목차", "before": 0, "after": 0},
+  "label_wrap": {"mode": "subitem", "text_width": 498, "font_size": 11, "wide": 1.0, "narrow": 0.55, "space": 0.3},
+  "sentence_break": {"comma": false, "period": "paragraph", "list_continuation": "no_bullet_same_text_indent"},
+  "align": {"body": "START", "table_header": "CENTER"},
+  "spacer": {"line": 125, "before": 0, "after": 0},
+  "list": {
+    "line": 125,
+    "indent": [[36, 18], [72, 54], [108, 90]],
+    "before": 11,
+    "after": 11
+  },
+  "table": {
+    "border_width": 1,
+    "outer_top_bottom": "E2E8F0",
+    "inner": "F1F5F9",
+    "outer_left_right": "none",
+    "pad_top_bottom": 6,
+    "pad_left_right": 8,
+    "valign": "MIDDLE",
+    "header_bg": "F8FAFC",
+    "header_color": "1E293B",
+    "header_bold": true,
+    "body_bg": "FFFFFF",
+    "cell_size": 10,
+    "first_col_bold": true,
+    "width_total": 498,
+    "widths": {"2": [130, 368]}
+  }
+}

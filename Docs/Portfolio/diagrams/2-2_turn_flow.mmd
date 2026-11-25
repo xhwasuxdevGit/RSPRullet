@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant T as 턴 플레이어
+    participant O as 상대
+    Note over T: 1. 뽑기<br/>더미 맨 위 카드를 혼자 확인
+    T->>O: 2. 카드 분배 · 가진다 / 준다
+    Note over T,O: 남은 자리에는 다음 카드가 엎어진 채 들어감
+    Note over T: 3-1. 아이템<br/>원하는 만큼 쓰고 끝내기
+    Note over O: 3-2. 아이템<br/>원하는 만큼 쓰고 끝내기
+    Note over T,O: 4. 공개 · 양쪽 카드 뒤집기
+    Note over T,O: 5. 판정 · 진 쪽 체력 -1 (커피 사용 시 -2)
+    Note over T,O: 6. 결과 표시 · 승패와 체력 변화를 순서대로 표시
