@@ -21,9 +21,10 @@
 | Jira 이슈로 작업 시작 | `start-issue` 스킬 | `/start-issue RSP-87` 또는 자동 선택 |
 | 커밋·PR 생성 | `create-pr` 스킬 | 자동 선택 또는 명시 호출 |
 | 기술문서 작성·갱신 | `write-tech-doc` 스킬 | 승인 후 사용 |
+| 기획서 → 포트폴리오 Google 문서 변환 | `portfolio-gdoc` 스킬 | 자동 선택 또는 명시 호출 |
 
 - 위 작업을 시작할 때 해당 스킬을 아직 읽지 않았다면 먼저 읽는다. 한 세션에서 이미 읽은 스킬은 다시 읽지 않는다.
-- Confluence 문서는 고정 링크 대신 `RSPRulletDocs` 스페이스의 `기획 문서` 폴더와 `기술 문서` 폴더에서 이슈에 맞는 개별 문서를 찾아 참고한다. 조회 시점과 방법은 `start-issue`·`write-tech-doc` 스킬에 있다. 개발 이슈의 조회 시점과 범위는 `start-issue` 2-2를 따르고, 이슈와 무관한 작업에서는 Confluence를 조회하지 않는다.
+- Confluence 문서는 고정 링크 대신 `RSPRulletDocs` 스페이스의 `기획 문서` 폴더와 `기술 문서` 폴더에서 이슈에 맞는 개별 문서를 찾아 참고한다. 조회 시점과 방법은 `start-issue`·`write-tech-doc`·`portfolio-gdoc` 스킬에 있다. 개발 이슈의 조회 시점과 범위는 `start-issue` 2-2를 따르고, 이슈와 무관한 작업에서는 Confluence를 조회하지 않는다. 예외로 `portfolio-gdoc`는 이슈 없이 변환 대상 기획서를 그 스킬 2장 범위에서 조회한다.
 - Jira·Confluence는 `rsprullet.atlassian.net` 사이트(cloudId `4037dc82-0a83-448f-bbb6-4925e442032e`)를 사용한다. Atlassian 커넥터가 여러 개 연결될 수 있으므로, 세션의 첫 Atlassian 작업 전에 접근 가능한 사이트 목록에 rsprullet이 있는 커넥터를 확인해 그 커넥터만 쓴다. 다른 사이트에 연결된 커넥터로 조회·쓰기를 하지 않는다.
 - 조직 정책으로 인해 스킬이나 지침을 적용할 수 없는 경우 사용자에게 대안을 제시한다.
 

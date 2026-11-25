@@ -1,6 +1,8 @@
 """HTML 변환 직후 문서에 남는 서식 차이를 보정하는 update_doc 요청을 만든다.
 
-사용: python postfix.py <read_doc 결과 JSON> [style-spec.json] > req.json
+사용: python postfix.py <read_doc 결과 JSON> [style-spec.json] [--extra-only] [--bold-src 원고.html] [--max N] > req.json
+- --max N: 한 번에 보낼 요청을 N개 이하로 자른다. 남은 요청은 문서를 다시 읽고 다시 실행하면 나온다
+  (이미 적용된 값은 빠지므로 같은 명령을 남은 수가 0이 될 때까지 반복).
 - 입력은 Docs read_doc 결과를 저장한 파일({"content": {...}} 또는 문서 JSON 그대로).
 - 출력은 update_doc의 requests 배열과 writeControl. 스타일 요청을 먼저, 삽입은 뒤에서 앞으로 둔다.
 - 처리 항목: 페이지 없음, 단락 간격 모드, 전체 글꼴, 문서 제목(TITLE), 제목 간격,
@@ -14,9 +16,12 @@ import sys
 sys.stderr.reconfigure(encoding="utf-8")
 
 here = os.path.dirname(os.path.abspath(__file__))
-doc = json.load(open(sys.argv[1], encoding="utf-8"))
+# 위치 인자만 고른다(옵션과 옵션 값은 제외)
+VALUE_OPTS = ("--bold-src", "--max")
+args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] not in VALUE_OPTS]
+doc = json.load(open(args[0], encoding="utf-8"))
 doc = doc.get("content", doc)
-spec = json.load(open(sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "style-spec.json"), encoding="utf-8"))
+spec = json.load(open(args[1] if len(args) > 1 else os.path.join(here, "style-spec.json"), encoding="utf-8"))
 body = doc["tabs"][0]["documentTab"]["body"]["content"] if "tabs" in doc else doc["body"]["content"]
 end = body[-1]["endIndex"]
 
@@ -325,6 +330,7 @@ R = [r for r in R if not _same(r)]
 sys.stderr.write("이미 같은 값이라 뺀 요청: %d / %d\n" % (before - len(R), before))
 
 # 삽입은 뒤에서 앞으로. 구분선: s+1(구분선 뒤 분리) → s(앞 빈 줄)
+tail_start = len(R)  # 여기부터는 위치가 바뀌는 삽입 묶음이라 나누지 않고 항상 마지막에 보낸다
 for pos, kind in sorted(inserts, reverse=True):
     if kind == "hr":
         R.append({"insertText": {"location": {"index": pos + 1}, "text": "\n"}})
@@ -339,5 +345,21 @@ for pos, kind in sorted(inserts):
     R.append({"updateParagraphStyle": {"range": rng, "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"}, "fields": "namedStyleType"}})
     R.append({"updateParagraphStyle": {"range": rng, "paragraphStyle": {"lineSpacing": sp["line"], "spaceAbove": pt(sp["before"]), "spaceBelow": pt(sp["after"]), "indentStart": pt(0), "indentFirstLine": pt(0), "keepWithNext": False}, "fields": "lineSpacing,spaceAbove,spaceBelow,indentStart,indentFirstLine,keepWithNext"}})
     shift += 2 if kind == "hr" else 1
+
+if "--max" in sys.argv:
+    cap = int(sys.argv[sys.argv.index("--max") + 1])
+    head, tail = R[:tail_start], R[tail_start:]
+    if len(head) + len(tail) <= cap or len(head) == 0:
+        rest = 0
+    else:
+        # 마침표 분리 묶음(삭제·삽입 쌍, 뒤따르는 글머리 해제·들여쓰기) 중간에서는 자르지 않는다.
+        # 나뉘면 다음 실행에서 ". "가 없어 글머리 해제가 다시 나오지 않는다.
+        cut = min(cap, len(head))
+        glued = ("deleteContentRange", "insertText", "deleteParagraphBullets")
+        while cut > 0 and (list(head[cut - 1])[0] in glued or (cut < len(head) and list(head[cut])[0] in glued[1:])):
+            cut -= 1
+        R = head[:cut]
+        rest = len(head) - cut + len(tail)
+    sys.stderr.write("남은 요청: %d%s\n" % (rest, " (보낸 뒤 read_doc → 같은 명령 다시 실행)" if rest else ""))
 
 json.dump({"requests": R, "writeControl": {"requiredRevisionId": doc["revisionId"]}}, sys.stdout, ensure_ascii=False, separators=(",", ":"))
