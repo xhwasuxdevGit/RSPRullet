@@ -79,6 +79,11 @@ for ti, t in enumerate(re.findall(r"<w:tbl>.*?</w:tbl>", x, re.S)):
             if (ri == 0 or ci == 0) and runs and not re.search(r'<w:b w:val="1"|<w:b/>', runs[0]):
                 bad["표%d 굵게(머리행·첫 열)" % (ti + 1)].append("r%dc%d %r" % (ri, ci, txt(tc)))
             fonts(tc, "표")
+            for cp in re.findall(r"<w:p[ >].*?</w:p>", tc, re.S):  # 셀 안 단락 줄간격·앞뒤 간격
+                got = (attr(cp, "line", 240) / 240 * 100, attr(cp, "before") / 20, attr(cp, "after") / 20)
+                if [round(v) for v in got] != [T["cell_line"], T["cell_before"], T["cell_after"]]:
+                    bad["표%d 셀 단락 줄간격·간격" % (ti + 1)].append("r%dc%d %s" % (ri, ci, [round(v, 1) for v in got]))
+                    break
 
 # 단락
 import unicodedata
@@ -92,7 +97,7 @@ def em(s):
 
 body = re.sub(r"<w:tbl>.*?</w:tbl>", "", x, flags=re.S)
 listbefore = defaultdict(int)
-toc = True
+toc = False
 prev_sty, prev_blank, prev_p = None, False, None
 # 절 제목 앞 빈 줄 검사 (표 뒤 빈 줄은 표 제거 후에도 남는 빈 단락으로 잡힌다)
 for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
@@ -110,8 +115,8 @@ for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
     sty = re.search(r'<w:pStyle w:val="(\w+)"', p)
     sty = sty.group(1) if sty else "Normal"
     full = html.unescape("".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", p)))
-    if sty == "Heading1" and re.search(r"\d\.", full):
-        toc = False
+    if sty == "Heading1":  # "목차" 제목부터 첫 번호 장 제목 전까지만 목차 구간
+        toc = full.strip().startswith(spec["toc"]["heading"]) and not re.search(r"\d", full)
     if sty == "Heading1" and full.startswith(spec["toc"]["heading"]) and full.strip() != spec["toc"]["heading"]:
         bad["목차 제목"].append("%r (영문 표기 등 제거)" % full)
     if "[도식 삽입:" in full:
@@ -119,7 +124,7 @@ for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
     jc = re.search(r'<w:jc w:val="(\w+)"', p)
     if jc and jc.group(1) not in ("left", "start", "both"):
         bad["정렬(왼쪽이어야 함)"].append("%r %s" % (full[:20], jc.group(1)))
-    if sty == "Normal" and not toc and re.search(r"\.\s(?=\S)", full.replace("\n", " ")):
+    if sty == "Normal" and not toc and not full.lstrip().startswith(('"', "“")) and re.search(r"\.\s(?=\S)", full.replace("\n", " ")):  # 따옴표로 시작하는 문구(슬로건)는 제외
         bad["마침표 단락 분리 누락"].append("%r" % full[:20])
     if "<w:br" in p and sty == "Normal":
         bad["단락 안 줄바꿈(Shift+Enter) 남음"].append("%r" % full[:20])
@@ -129,14 +134,18 @@ for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
         count[k] += 1
         for key, got in (("before", before), ("after", after), ("line", line)):
             check(k, p, key, got, spec[k][key])
+        # 제목 글자는 모두 굵게(제목 스타일의 굵게를 이어받으면 표시가 없으므로 명시적 해제만 잡는다)
+        runs = [r for r in re.findall(r"<w:r(?:\s[^>]*)?>(.*?)</w:r>", p, flags=re.S) if re.sub("<[^>]+>", "", r).strip()]
+        if spec[k].get("bold") and any('<w:b w:val="0"/>' in r for r in runs):
+            bad["제목 굵게 누락"].append("%r" % full[:20])
         continue
     fonts(p, "본문")
     if "<w:numPr>" in p:
         count["목록"] += 1
         lv = int(re.search(r'<w:ilvl w:val="(\d)"', p).group(1))
         a, f = spec["list"]["indent"][min(lv, 2)]
-        ind = re.search(r'<w:ind w:left="(\d+)"[^>]*w:hanging="(\d+)"', p)
-        if not ind or float(ind.group(1)) != a * 20 or float(ind.group(2)) != (a - f) * 20:
+        ind = re.search(r'<w:ind w:left="([\d.]+)"[^>]*w:hanging="([\d.]+)"', p)
+        if not ind or round(float(ind.group(1))) != round(a * 20) or round(float(ind.group(2))) != round((a - f) * 20):
             bad["목록 들여쓰기 L%d" % lv].append("%r %s" % (txt(p), ind.groups() if ind else None))
         listbefore[before] += 1
         ref = spec["toc"] if toc else spec["list"]
