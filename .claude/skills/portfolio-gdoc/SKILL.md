@@ -48,11 +48,14 @@ description: Confluence 기획 문서를 포트폴리오용으로 정제해 기�
 2. **원고 업로드**: `base.html`의 `<style>` 머리를 그대로 쓰고 본문만 작성해(5장) Drive `create_file`의 `textContent`에 **한 번만** 쓴다(로컬 저장 금지, 같은 원고를 두 번 쓰지 않는다. 예외는 5장 굵게 복원뿐). 승인된 도식 위치에는 `[도식 삽입: 파일명]` 표시 단락을 넣는다.
 3. **보정**: `read_doc` 결과(파일)에 `python -I postfix.py <파일>`을 돌려 나온 `requests`·`writeControl`을 `update_doc`에 그대로 보낸다.
    - 출력이 커서 한 번에 보내기 어려우면 `--max N`(30 이상)을 붙인다. 보낸 뒤 다시 읽고 같은 명령을 반복하면 남은 요청만 나온다(stderr의 "남은 요청"이 0이 될 때까지). 삽입 묶음은 스크립트가 항상 마지막에 둔다.
-4. **검증**: Drive `download_file_content`로 docx를 받아 `python -I check_format.py <docx>`. "OK"면 끝. ✗가 남으면 `python -I postfix.py <다시 읽은 파일> --extra-only`로 그 부분만 다시 보낸다. 그래도 남는 것만 `reference.md`를 보고 손으로 고친다. PDF 내보내기는 페이지 없음 문서에서 실패하므로 쓰지 않는다.
+4. **검증**: Drive `download_file_content`(`exportMimeType`: docx)를 부른다. 결과는 base64라 크다.
+   - 결과가 파일로 저장됐으면 `python -I check_format.py <그 파일>`(스크립트가 base64를 직접 푼다).
+   - 결과가 대화에 그대로 들어왔으면 **base64를 Write로 옮겨 적지 않는다**(같은 분량을 한 번 더 출력하게 된다). 대신 문서를 다시 읽어 `postfix.py`를 돌리고 요청이 0개면 보정 항목은 통과로 본다. `check_format.py` 검증은 미실행으로 보고한다.
+   - "OK"면 끝. ✗가 남으면 `python -I postfix.py <다시 읽은 파일> --extra-only`로 그 부분만 다시 보낸다. 그래도 남는 것만 `reference.md`를 보고 손으로 고친다. PDF 내보내기는 페이지 없음 문서에서 실패하므로 쓰지 않는다.
 5. **도식(승인된 경우)**: `diagrams.md` 절차를 따른다. PNG 확인이 반복되므로 원고 작업이 길었으면 새 세션으로 나눠 진행하는 것을 제안한다.
 6. **최종 보고**(`[작업 결과]` 한 번): 문서 링크(같은 문서면 링크 유지 명시), 정제 내용, 검증 결과, 미검증 항목(화면 모양은 직접 못 봄), 만든 시험·임시 문서(사용자가 원할 때만 휴지통으로).
 
-- 금지: 서식을 수백 건의 수정 요청으로 덧입히기, 같은 요청 JSON을 두 번 이상 읽기(`update_doc`에 넘기려면 한 번은 읽어야 한다), 큰 `read_doc` 결과를 대화로 읽기.
+- 금지: 서식을 수백 건의 수정 요청으로 덧입히기, 같은 요청 JSON을 두 번 이상 읽기(`update_doc`에 넘기려면 한 번은 읽어야 한다), 큰 `read_doc` 결과를 대화로 읽기, docx base64를 대화로 읽거나 옮겨 적기.
 
 ## 5. HTML 작성 규칙
 - **`<style>`에 글꼴(`font-family`)·`font-weight`를 넣지 않는다.** 글꼴 규칙이 있으면 `<b>`가 모두 사라진다. 글꼴은 보정에서 문서 전체에 한 번 적용한다. 그래도 굵게가 사라졌을 때만 예외로 원고를 scratchpad에 파일로 저장해 `postfix.py ... --bold-src <원고.html>`로 복원한다(못 찾은 구절은 stderr). 원고 전체를 다시 출력하는 비용이 들므로 위 금지 규칙으로 먼저 막는다.

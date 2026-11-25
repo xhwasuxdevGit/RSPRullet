@@ -1,10 +1,13 @@
 """구글 문서를 docx로 내보낸 파일을 style-spec.json과 비교해 다른 항목만 출력한다.
 
-사용: python -I check_format.py <내보낸 docx> [style-spec.json]
+사용: python -I check_format.py <내보낸 docx 또는 download_file_content 결과 파일> [style-spec.json]
+- 결과 파일을 넣으면 안의 base64를 직접 풀어 읽는다(base64를 docx로 옮겨 적지 않아도 된다).
 - 문제가 없으면 "OK" 한 줄과 요약만 나온다. 항목별 예시는 최대 3개만 보여준다.
 - Google의 docx 내보내기 기준: 간격 twip(1/20pt), 줄간격 line/240, 글자 크기 half-point.
 """
+import base64
 import html
+import io
 import json
 import os
 import re
@@ -15,7 +18,22 @@ from collections import defaultdict
 sys.stdout.reconfigure(encoding="utf-8")
 here = os.path.dirname(os.path.abspath(__file__))
 spec = json.load(open(sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "style-spec.json"), encoding="utf-8"))
-x = zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode("utf-8")
+
+
+def open_docx(path):
+    # docx 파일이 아니면 download_file_content 결과를 저장한 파일로 보고 base64(zip 머리 "UEsDB")를 찾아 푼다
+    if zipfile.is_zipfile(path):
+        return zipfile.ZipFile(path)
+    raw = open(path, encoding="utf-8", errors="ignore").read()
+    # JSON에 한 번 이상 감싸이면 "/"가 "\/"처럼 이스케이프되므로 역슬래시를 함께 잡아 지운다
+    m = re.search(r"UEsDB[A-Za-z0-9+/=\\]+", raw)
+    if not m:
+        print("docx도 base64 docx도 아님: %s" % path)
+        sys.exit(1)
+    return zipfile.ZipFile(io.BytesIO(base64.b64decode(m.group(0).replace("\\", ""))))
+
+
+x = open_docx(sys.argv[1]).read("word/document.xml").decode("utf-8")
 bad = defaultdict(list)
 count = defaultdict(int)
 
