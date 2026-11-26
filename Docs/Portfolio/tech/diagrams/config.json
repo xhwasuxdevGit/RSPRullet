@@ -1,0 +1,22 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Noto Sans KR, Malgun Gothic, sans-serif",
+    "fontSize": "15px",
+    "primaryColor": "#F8FAFC",
+    "primaryBorderColor": "#94A3B8",
+    "primaryTextColor": "#1E293B",
+    "lineColor": "#64748B",
+    "secondaryColor": "#F1F5F9",
+    "tertiaryColor": "#FFFFFF",
+    "actorBkg": "#F8FAFC",
+    "actorBorder": "#94A3B8",
+    "actorTextColor": "#1E293B",
+    "noteBkgColor": "#F1F5F9",
+    "noteBorderColor": "#CBD5E1",
+    "noteTextColor": "#334155",
+    "edgeLabelBackground": "#FFFFFF"
+  },
+  "flowchart": {"curve": "basis", "padding": 12},
+  "sequence": {"mirrorActors": false}
+}

@@ -1,0 +1,36 @@
+flowchart TB
+    IN(["딜러 차례 · 카드를 뽑음"]) --> KI["DealerKnownInfo 생성<br/>모르는 카드의 손 모양 = null"]
+    KI --> M{"몇 번째 판?<br/>MatchIndex"}
+
+    subgraph F1["1번째 판 · 카드를 세지 않음 (셔플 시작 구성 3·2·2 기준)"]
+        direction TB
+        R1["① 승패 판단 규칙<br/>JudgeThisMatch<br/>이기는 손모양 수 vs 지는 손모양 수"]
+        R2["② 카드 조합 판단 규칙<br/>JudgeCombination<br/>A-1 · A-2 · B-1 · B-2 표"]
+        R3{"③ 충돌 해결 규칙<br/>① 결론이 있으면 ① 우선<br/>① 상관없음이면 ②"}
+        R2 --> R3
+        R1 --> R3
+    end
+
+    subgraph F2["2번째 판 · 모르는 카드를 실제로 셈"]
+        direction TB
+        EK["가질 때 예상 HP 변화<br/>Σ (판정 + 정산) × 모르는 카드 수"]
+        EG["줄 때 예상 HP 변화<br/>Σ (판정 + 정산) × 모르는 카드 수"]
+        CMP{"큰 쪽 = 규칙상 결론<br/>같으면 결론 없음"}
+        EG --> CMP
+        EK --> CMP
+    end
+
+    M -->|"0"| F1
+    M -->|"1"| F2
+
+    R3 --> RATE1["따를 확률<br/>같은 방향 · ①만 결론 → 100%<br/>반대 · ②만 결론 → 규칙 준수율"]
+    CMP --> RATE2["따를 확률<br/>HP 차이 1 → 규칙 준수율<br/>HP 차이 2 이상 → 강함 보정률"]
+
+    RATE1 --> RND{"무작위 단계<br/>ApplyRandomRatio<br/>난수 1회"}
+    RATE2 --> RND
+    RND -->|"난수 < 확률"| FOLLOW["규칙상 결론을 따름"]
+    RND -->|"그 외"| REV["반대 선택"]
+    RND -->|"결론 없음"| HALF["50 : 50"]
+    FOLLOW --> OUT(["실제 행동<br/>TableState.Distribute(keep)"])
+    REV --> OUT
+    HALF --> OUT

@@ -1,0 +1,62 @@
+classDiagram
+    direction TB
+    class GameFlowRunner {
+        <<MonoBehaviour · 씬 연결>>
+        +Flow GameFlow
+        -Awake() GameFlow 생성
+        -Update() 표시·대기 시간 측정 후 Next()
+        +StartNextRound()
+    }
+    class RoundProgress {
+        <<라운드를 넘어 유지>>
+        RoundNumber
+        MedicineCount
+    }
+    class GameFlow {
+        <<순수 C# · 라운드 하나의 흐름>>
+        +StartRound()
+        +DrawCard()
+        +Distribute(keep)
+        +PlayDealerTurn()
+        +Next()
+        +event PhaseChanged
+        +event CardsChanged
+        +event HealthChanged
+        +Table ITableView
+        +Health IHealthView
+    }
+    class PhaseMachine {
+        <<상태 기계>>
+        +CurrentPhase GamePhase
+        +MatchIndex
+        +CompleteXxx(결과) bool
+        +event PhaseChanged
+    }
+    class GamePhase {
+        <<enum · 14단계>>
+    }
+    class TableState {
+        <<카드 셔플마다 새로 생성>>
+    }
+    class HealthState
+    class ItemState
+    class ItemPhaseFlow {
+        <<아이템 단계 진행>>
+    }
+    class DealerAI
+    class UI {
+        <<PhaseButtonsUI · TableCardsUI 등>>
+    }
+
+    GameFlowRunner *-- GameFlow : 라운드마다 생성
+    GameFlowRunner --> RoundProgress : 라운드 번호 조회
+    GameFlow *-- PhaseMachine : 단계 전환 위임
+    GameFlow *-- HealthState : 판정·정산 반영
+    GameFlow *-- ItemState
+    GameFlow *-- ItemPhaseFlow : 아이템 단계 위임
+    GameFlow *-- DealerAI
+    GameFlow o-- TableState : 셔플마다 교체
+    ItemPhaseFlow --> PhaseMachine : CompleteItemUse()
+    ItemPhaseFlow --> DealerAI : 딜러 아이템 판단
+    PhaseMachine --> GamePhase : 현재 단계 1개
+    UI ..> GameFlow : 입력 전달 · 이벤트 구독 · 읽기 전용 조회

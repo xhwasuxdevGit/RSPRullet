@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    actor U as 플레이어
+    participant UI as PhaseButtonsUI
+    participant F as GameFlow
+    participant T as TableState
+    participant P as PhaseMachine
+    participant R as GameFlowRunner
+
+    U->>UI: [가진다] 클릭
+    UI->>F: Distribute(keep: true)
+    alt 지금 단계가 아님 (중복 클릭 등)
+        F-->>UI: false (무시 · 로그)
+    else Distribute 단계 & 플레이어 차례
+        F->>T: Distribute(keep)
+        T-->>F: Changed
+        F-->>UI: CardsChanged 이벤트
+        F->>P: CompleteDistribute()
+        P-->>F: PhaseChanged
+        F-->>UI: PhaseChanged(이전, 새 단계) → 버튼 갱신
+        F->>F: 아이템 단계 → RevealMatch() 후 멈춤
+    end
+    Note over UI,R: 연출·표시 시간은 화면 쪽이 맡음
+    UI->>F: 카드 공개 연출 끝 → Next()
+    F->>P: CompleteReveal() · CompleteJudge()
+    R->>R: Update()에서 판 결과 표시 시간 측정
+    R->>F: Next() → FinishMatch()
+    F->>P: CompleteShowResult(someoneAtZeroHealth)

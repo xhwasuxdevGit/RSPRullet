@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    participant R as GameFlowRunner<br/>(MonoBehaviour)
+    participant F as GameFlow
+    participant AI as DealerAI
+    participant K as DealerKnownInfo
+    participant T as TableState
+    participant P as PhaseMachine
+
+    Note over F,T: 판 시작 — 딜러 차례면 먼저 뽑고 분배 단계에서 멈춤
+    F->>T: DrawForTurnPlayer()
+    F->>P: CompleteDraw() → Distribute 단계
+    R->>R: Update()에서 "고민 중" 대기 시간 측정
+    R->>F: PlayDealerTurn()
+    F->>AI: TryDistribute(table, matchIndex)
+    AI->>K: new DealerKnownInfo(table, matchIndex)
+    K-->>AI: 아는 정보만 담긴 묶음 (모르는 칸 null)
+    AI->>AI: ChooseKeep() → ① · ② · ③ → ApplyRandomRatio()
+    AI->>T: Distribute(keep)
+    F->>P: CompleteDistribute() → 아이템 단계

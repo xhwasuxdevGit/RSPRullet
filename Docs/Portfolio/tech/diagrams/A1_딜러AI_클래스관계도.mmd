@@ -1,0 +1,64 @@
+classDiagram
+    direction LR
+    class GameFlow {
+        +PlayDealerTurn()
+    }
+    class ItemPhaseFlow {
+        -PlayDealerItemPhase()
+        -UseDealerItem(item)
+    }
+    class DealerAI {
+        <<판단 입구>>
+        +TryDistribute(table, matchIndex) bool
+        +JudgeThisMatch(knownInfo) DealerChoice
+        +JudgeCombination(knownInfo) DealerChoice
+        +ChooseItem(knownInfo, items, turnPlayer) ItemType?
+        +ChooseExchange(knownInfo, items) bool
+        -ChooseKeep(knownInfo) bool
+        -ApplyRandomRatio(conclusion, followRate) bool
+    }
+    class DealerItemJudge {
+        <<아이템·교환 판단>>
+        +ChooseItem() ItemType?
+        +ChooseExchange() bool
+    }
+    class DealerEstimateRules {
+        <<static 공통 계산>>
+        +GetThisMatchCardCount()
+        +GetJudgmentValue()
+        +GetSettlementChange()
+    }
+    class DealerKnownInfo {
+        <<딜러가 아는 정보>>
+        +DrawnShape HandShape?
+        +GetSlotShapes(side) 모르는 칸 = null
+        +GetUnknownCardCount(shape)
+    }
+    class TableState {
+        <<실제 테이블>>
+        +Distribute(keep)
+    }
+    class DealerSettings {
+        <<ScriptableObject>>
+        RuleComplianceRate
+        StrengthCorrectionRate
+        ClockUseChance
+        CoffeeUseThreshold
+    }
+    class DealerChoice {
+        <<enum>>
+        Keep
+        Give
+        Either
+    }
+
+    GameFlow --> DealerAI : 딜러 차례 분배 요청
+    ItemPhaseFlow --> DealerAI : 아이템·교환 판단 요청
+    DealerAI *-- DealerItemJudge : 생성·위임
+    DealerAI ..> DealerEstimateRules : 카드 세기·HP 계산
+    DealerItemJudge ..> DealerEstimateRules : 같은 계산 규칙
+    DealerAI ..> DealerKnownInfo : 판단 근거로만 사용
+    DealerKnownInfo ..> TableState : 생성 시 아는 정보만 복사
+    DealerAI --> TableState : 선택 결과만 전달
+    DealerAI --> DealerSettings : 확률 값 읽기
+    DealerAI ..> DealerChoice : 규칙별 결론

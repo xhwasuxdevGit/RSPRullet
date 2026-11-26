@@ -1,0 +1,26 @@
+stateDiagram-v2
+    direction TB
+    [*] --> RoundStart
+    RoundStart --> CardShuffle : CompleteRoundStart()
+    CardShuffle --> StartCardDeal : CompleteCardShuffle()
+    StartCardDeal --> DecideFirst : 시계 이월 없음
+    StartCardDeal --> Draw : 시계 이월 있음 (E2)
+    DecideFirst --> CardShuffle : 비김 (E1)
+    DecideFirst --> Draw : 승패 결정 · MatchIndex = 0
+
+    state "한 판 (MatchIndex 0 → 1)" as Match {
+        Draw --> Distribute : CompleteDraw()
+        Distribute --> ItemTurnPlayer : CompleteDistribute()
+        ItemTurnPlayer --> ItemOpponent : CompleteItemUse()
+        ItemOpponent --> Reveal : CompleteItemUse()
+        Reveal --> Judge : CompleteReveal()
+        Judge --> ShowResult : CompleteJudge()
+    }
+
+    ShowResult --> Draw : 1번째 판 끝 · MatchIndex++
+    ShowResult --> Settlement : 2번째 판 끝
+    ShowResult --> RoundEnd : 체력 0 발생 (E5)
+    Settlement --> SettlementWait : 둘 다 1 이상 / 둘 다 0 → 1 (E4)
+    Settlement --> RoundEnd : 한쪽만 0
+    SettlementWait --> CardShuffle : [다음 카드 셔플]
+    RoundEnd --> [*] : 씬 재로드로 다음 라운드
