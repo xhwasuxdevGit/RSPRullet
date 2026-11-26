@@ -64,8 +64,15 @@ for i, el in enumerate(body):
         if not widths:
             cur = [c.get("width", {}).get("magnitude", 1) for c in t["tableStyle"]["tableColumnProperties"]]
             widths = [round(w * spec["table"]["width_total"] / sum(cur)) for w in cur]
+        # 같은 너비 열은 한 요청으로 묶는다. 모든 열이 같으면 columnIndices를 빼서 표 전체에 적용
+        groups = {}
         for ci, w in enumerate(widths):
-            R.append({"updateTableColumnProperties": {"tableStartLocation": {"index": si}, "columnIndices": [ci], "tableColumnProperties": {"widthType": "FIXED_WIDTH", "width": pt(w)}, "fields": "width,widthType"}})
+            groups.setdefault(w, []).append(ci)
+        for w, cols in groups.items():
+            req = {"tableStartLocation": {"index": si}, "tableColumnProperties": {"widthType": "FIXED_WIDTH", "width": pt(w)}, "fields": "width,widthType"}
+            if len(cols) < n:
+                req["columnIndices"] = cols
+            R.append({"updateTableColumnProperties": req})
         R.append({"pinTableHeaderRows": {"tableStartLocation": {"index": si}, "pinnedHeaderRowsCount": 1}})
         nxt = body[i + 1] if i + 1 < len(body) else None
         # 다음 단락이 구분선이면 구분선 처리에서 빈 줄이 생기므로 표 뒤 빈 줄을 따로 넣지 않는다
@@ -292,9 +299,9 @@ def _same(r):
             return False
         if k == "pinTableHeaderRows":
             return r[k]["pinnedHeaderRowsCount"] == 1 and t["tableRows"][0].get("tableRowStyle", {}).get("tableHeader", False) and not (len(t["tableRows"]) > 1 and t["tableRows"][1].get("tableRowStyle", {}).get("tableHeader", False))
-        cp = t["tableStyle"]["tableColumnProperties"][r[k]["columnIndices"][0]]
+        cps = t["tableStyle"]["tableColumnProperties"]
         want = r[k]["tableColumnProperties"]
-        return cp.get("widthType") == want["widthType"] and _norm(cp.get("width", {})) == _norm(want["width"])
+        return all(cps[ci].get("widthType") == want["widthType"] and _norm(cps[ci].get("width", {})) == _norm(want["width"]) for ci in r[k].get("columnIndices", range(len(cps))))
     if k not in ("updateParagraphStyle", "updateTextStyle"):
         return False
     s, e = r[k]["range"]["startIndex"], r[k]["range"]["endIndex"]

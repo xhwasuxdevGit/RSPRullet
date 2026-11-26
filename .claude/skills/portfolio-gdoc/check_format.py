@@ -117,6 +117,7 @@ def em(s):
 
 body = re.sub(r"<w:tbl>.*?</w:tbl>", "", x, flags=re.S)
 listbefore = defaultdict(int)
+h1_emoji = defaultdict(list)
 toc = False
 prev_sty, prev_blank, prev_p = None, False, None
 first_h2 = False  # 장 제목 뒤 첫 절인지(첫 절 앞에는 빈 줄을 넣지 않는다)
@@ -165,6 +166,13 @@ for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
         runs = [r for r in re.findall(r"<w:r(?:\s[^>]*)?>(.*?)</w:r>", p, flags=re.S) if re.sub("<[^>]+>", "", r).strip()]
         if spec[k].get("bold") and any('<w:b w:val="0"/>' in r for r in runs):
             bad["제목 굵게 누락"].append("%r" % full[:20])
+        # 번호 장 제목("📝 1. 프로젝트 개요")은 이모지로 시작하고, 이모지는 장끼리 겹치지 않는다
+        m = re.match(r"(?:(\S+)\s+)?\d+\.\s", full.strip())
+        if sty == "Heading1" and m:
+            if m.group(1):
+                h1_emoji[m.group(1).replace("️", "")].append(full.strip()[:20])
+            else:
+                bad["장 제목 이모지 누락"].append("%r" % full[:20])
         continue
     fonts(p, "본문")
     if "<w:numPr>" in p:
@@ -196,6 +204,10 @@ for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
     for key, got in (("before", before), ("after", after)):
         check("본문", p, key, got, size)
     check("본문", p, "line", line, spec["body"]["line"])
+
+for e, titles in h1_emoji.items():
+    if len(titles) > 1:
+        bad["장 제목 이모지 중복"].append("%s %s" % (e, titles))
 
 print("요약:", dict(count), "| 목록 위 간격 분포:", dict(listbefore))
 if not bad:
