@@ -315,8 +315,11 @@ def _same(r):
         ptype = p["paragraphStyle"].get("namedStyleType", "NORMAL_TEXT")
         if k == "updateParagraphStyle":
             own = [(p["paragraphStyle"], "paragraphStyle")]
-        else:  # 범위에 걸친 글자 조각마다 확인 (줄바꿈만 있는 조각은 제외)
-            own = [(x["textRun"].get("textStyle", {}), "textStyle") for x in p["elements"] if "textRun" in x and x["startIndex"] < e and s < x["endIndex"] and x["textRun"]["content"].strip("\n")]
+        else:  # 범위에 걸친 글자 조각마다 확인 (줄바꿈만 있는 조각은 제외. 단, 빈 줄 한 칸만 겨냥한 요청은 그 줄바꿈으로 확인)
+            runs = [x for x in p["elements"] if "textRun" in x and x["startIndex"] < e and s < x["endIndex"]]
+            if e - s > 1:
+                runs = [x for x in runs if x["textRun"]["content"].strip("\n")]
+            own = [(x["textRun"].get("textStyle", {}), "textStyle") for x in runs]
         for st, kind in own:
             for f in fields:
                 w = _norm(want[f]) if f in want else None
