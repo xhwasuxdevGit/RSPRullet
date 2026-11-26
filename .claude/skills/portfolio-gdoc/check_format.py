@@ -97,9 +97,11 @@ for ti, t in enumerate(re.findall(r"<w:tbl>.*?</w:tbl>", x, re.S)):
             if (ri == 0 or ci == 0) and runs and not re.search(r'<w:b w:val="1"|<w:b/>', runs[0]):
                 bad["표%d 굵게(머리행·첫 열)" % (ti + 1)].append("r%dc%d %r" % (ri, ci, txt(tc)))
             fonts(tc, "표")
-            for cp in re.findall(r"<w:p[ >].*?</w:p>", tc, re.S):  # 셀 안 단락 줄간격·앞뒤 간격
+            # 셀 안 단락 줄간격·앞뒤 간격 (머리행과 본문 행 기준이 다름)
+            wc = [T["cell_line"], T["cell_before"], T["cell_after"]] if ri == 0 else [T["body_cell_line"], T["body_cell_before"], T["body_cell_after"]]
+            for cp in re.findall(r"<w:p[ >].*?</w:p>", tc, re.S):
                 got = (attr(cp, "line", 240) / 240 * 100, attr(cp, "before") / 20, attr(cp, "after") / 20)
-                if [round(v) for v in got] != [T["cell_line"], T["cell_before"], T["cell_after"]]:
+                if [round(v) for v in got] != wc:
                     bad["표%d 셀 단락 줄간격·간격" % (ti + 1)].append("r%dc%d %s" % (ri, ci, [round(v, 1) for v in got]))
                     break
 
@@ -117,17 +119,24 @@ body = re.sub(r"<w:tbl>.*?</w:tbl>", "", x, flags=re.S)
 listbefore = defaultdict(int)
 toc = False
 prev_sty, prev_blank, prev_p = None, False, None
+first_h2 = False  # 장 제목 뒤 첫 절인지(첫 절 앞에는 빈 줄을 넣지 않는다)
 # 절 제목 앞 빈 줄 검사 (표 뒤 빈 줄은 표 제거 후에도 남는 빈 단락으로 잡힌다)
 for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
     s = re.search(r'<w:pStyle w:val="(\w+)"', p)
     s = s.group(1) if s else "Normal"
     blank = s == "Normal" and not txt(p).strip() and "<w:numPr>" not in p
-    if s == "Heading2" and prev_sty not in ("Heading1", None) and not prev_blank:
+    if s == "Heading1":
+        first_h2 = True
+    if s == "Heading2" and first_h2 and prev_blank:
+        bad["장 첫 절 앞 빈 줄(넣지 않음)"].append("%r" % txt(p))
+    if s == "Heading2" and not first_h2 and prev_sty not in ("Heading1", None) and not prev_blank:
         bad["절 제목 앞 빈 줄 누락"].append("%r" % txt(p))
-    if s == "Heading2" and prev_blank and prev_p:
+    if s == "Heading2" and not first_h2 and prev_blank and prev_p:
         m = re.search(r'<w:sz w:val="(\d+)"', prev_p)
         if not m or int(m.group(1)) != spec["h2"]["size"] * 2:
             bad["절 제목 앞 빈 줄 글자 크기(절 제목과 같아야 함)"].append("%r 앞 %s" % (txt(p), int(m.group(1)) / 2 if m else None))
+    if s == "Heading2":
+        first_h2 = False
     prev_sty, prev_blank, prev_p = s, blank and "<w:drawing" not in p, p
 for p in re.findall(r"<w:p[ >].*?</w:p>", body, re.S):
     sty = re.search(r'<w:pStyle w:val="(\w+)"', p)

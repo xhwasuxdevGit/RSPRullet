@@ -5,8 +5,8 @@
   (이미 적용된 값은 빠지므로 같은 명령을 남은 수가 0이 될 때까지 반복).
 - 입력은 Docs read_doc 결과를 저장한 파일({"content": {...}} 또는 문서 JSON 그대로).
 - 출력은 update_doc의 requests 배열과 writeControl. 스타일 요청을 먼저, 삽입은 뒤에서 앞으로 둔다.
-- 처리 항목: 페이지 없음, 단락 간격 모드, 전체 글꼴, 문서 제목(TITLE), 제목 간격,
-  하위 목록 들여쓰기, 표 열 너비·머리행 고정, 구분선 단락 분리, 표 뒤 빈 줄.
+- 처리 항목: 페이지 없음, 단락 간격 모드, 전체 글꼴, 문서 제목(TITLE),
+  표 열 너비·머리행 고정, 구분선 단락 분리, 표 뒤 빈 줄.
 - 문서 현재 값과 같은 스타일·표 요청은 빼고 출력한다(판단할 수 없으면 남긴다).
 """
 import json
@@ -55,7 +55,6 @@ R = [
 inserts = []  # (위치, 종류)
 # 이미 TITLE 단락이 있으면(보정을 다시 돌리는 경우) 첫 제목1을 TITLE로 바꾸지 않는다
 title_done = any("paragraph" in el and el["paragraph"]["paragraphStyle"].get("namedStyleType") == "TITLE" for el in body)
-nested = []
 for i, el in enumerate(body):
     if "table" in el:
         t = el["table"]
@@ -86,18 +85,7 @@ for i, el in enumerate(body):
         R.append({"updateParagraphStyle": {"range": {"startIndex": s, "endIndex": e}, "paragraphStyle": {"namedStyleType": "TITLE"}, "fields": "namedStyleType"}})
         R.append({"updateTextStyle": {"range": {"startIndex": s, "endIndex": e - 1}, "textStyle": {"fontSize": pt(ts["size"]), "bold": True, "foregroundColor": rgb(ts["color"])}, "fields": "fontSize,bold,foregroundColor"}})
         R.append(para_style(s, e, ts, True))
-    elif st in ("HEADING_1", "HEADING_2"):
-        R.append(para_style(s, e, spec["h1" if st == "HEADING_1" else "h2"], True))
-    if "bullet" in p:
-        lv = p["bullet"].get("nestingLevel", 0)
-        if lv > 0:
-            if nested and nested[-1][1] == s and nested[-1][2] == lv:
-                nested[-1][1] = e
-            else:
-                nested.append([s, e, lv])
-for s, e, lv in nested:
-    a, f = spec["list"]["indent"][min(lv, 2)]
-    R.append({"updateParagraphStyle": {"range": {"startIndex": s, "endIndex": e}, "paragraphStyle": {"indentStart": pt(a), "indentFirstLine": pt(f)}, "fields": "indentStart,indentFirstLine"}})
+# 장·절 제목 간격과 목록 들여쓰기는 아래 추가 보정(X)에서 한 번만 만든다
 
 # ── 추가 보정 (HTML로 안 되는 것) ──────────────────────────────
 # 위치가 바뀌지 않는 요청만 쓴다(같은 길이 치환, 스타일). 삽입보다 앞에 둔다.
@@ -110,9 +98,12 @@ for el in body:
     if "table" in el:
         # 표 글자 크기
         X.append({"updateTextStyle": {"range": {"startIndex": el["startIndex"], "endIndex": el["endIndex"]}, "textStyle": {"fontSize": pt(spec["table"]["cell_size"])}, "fields": "fontSize"}})
-        # 셀 안 단락: 줄간격·앞뒤 간격(줄간격이 크면 세로 가운데 정렬이 어긋나 보인다). 위아래 여백은 셀 여백만 쓴다
+        # 셀 안 단락: 줄간격·앞뒤 간격. 머리행은 1.0·앞뒤 0(세로 가운데 정렬 유지), 본문 행은 1.5·앞 간격 = 셀 글자 크기
         T = spec["table"]
-        X.append({"updateParagraphStyle": {"range": {"startIndex": el["table"]["tableRows"][0]["tableCells"][0]["content"][0]["startIndex"], "endIndex": el["table"]["tableRows"][-1]["tableCells"][-1]["content"][-1]["endIndex"]}, "paragraphStyle": {"lineSpacing": T["cell_line"], "spaceAbove": pt(T["cell_before"]), "spaceBelow": pt(T["cell_after"])}, "fields": "lineSpacing,spaceAbove,spaceBelow"}})
+        rows = el["table"]["tableRows"]
+        X.append({"updateParagraphStyle": {"range": {"startIndex": rows[0]["tableCells"][0]["content"][0]["startIndex"], "endIndex": rows[0]["tableCells"][-1]["content"][-1]["endIndex"]}, "paragraphStyle": {"lineSpacing": T["cell_line"], "spaceAbove": pt(T["cell_before"]), "spaceBelow": pt(T["cell_after"])}, "fields": "lineSpacing,spaceAbove,spaceBelow"}})
+        if len(rows) > 1:
+            X.append({"updateParagraphStyle": {"range": {"startIndex": rows[1]["tableCells"][0]["content"][0]["startIndex"], "endIndex": rows[-1]["tableCells"][-1]["content"][-1]["endIndex"]}, "paragraphStyle": {"lineSpacing": T["body_cell_line"], "spaceAbove": pt(T["body_cell_before"]), "spaceBelow": pt(T["body_cell_after"])}, "fields": "lineSpacing,spaceAbove,spaceBelow"}})
         # 표 안 <b>는 변환에서 사라지므로 머리행·첫 열을 굵게
         for ri, row in enumerate(el["table"]["tableRows"]):
             for ci, cell in enumerate(row["tableCells"]):
@@ -229,12 +220,17 @@ for s0, e0 in bold:
         merged_bold.append([s0, e0])
 rest = [r for r in X if not ("updateTextStyle" in r and r["updateTextStyle"]["fields"] == "bold")]
 out = []
+last = {}  # 같은 단락 스타일 요청의 마지막 것. 다른 요청이 사이에 끼어 있어도 단락이 이어지면 합친다
 for r in rest:
     k = list(r)[0]
-    if out and k == "updateParagraphStyle" and list(out[-1])[0] == k and _key(out[-1]) == _key(r) and out[-1][k]["range"]["endIndex"] == r[k]["range"]["startIndex"]:
-        out[-1][k]["range"]["endIndex"] = r[k]["range"]["endIndex"]
-    else:
-        out.append(r)
+    if k == "updateParagraphStyle":
+        key = _key(r)
+        prev_r = last.get(key)
+        if prev_r and prev_r[k]["range"]["endIndex"] == r[k]["range"]["startIndex"]:
+            prev_r[k]["range"]["endIndex"] = r[k]["range"]["endIndex"]
+            continue
+        last[key] = r
+    out.append(r)
 X = out + [{"updateTextStyle": {"range": {"startIndex": s0, "endIndex": e0}, "textStyle": {"bold": True}, "fields": "bold"}} for s0, e0 in merged_bold]
 
 if "--extra-only" in sys.argv:
